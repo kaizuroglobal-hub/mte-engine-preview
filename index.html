@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MTE Engine Preview</title>
+</head>
+<body>
+<div style="font-family:Arial,sans-serif;padding:24px">Loading MTE Engine Preview…</div>
+<script>
+(async()=>{
+  try{
+    const parts=["preview-chunks/00.part","preview-chunks/01.part","preview-chunks/02.part","preview-chunks/03.part","preview-chunks/04.part","preview-chunks/05.part","preview-chunks/06.part","preview-chunks/07.part","preview-chunks/08.part","preview-chunks/09.part","preview-chunks/10.part","preview-chunks/11.part","preview-chunks/12.part","preview-chunks/13.part","preview-chunks/14.part","preview-chunks/15.part"];
+    const text=await Promise.all(parts.map(p=>fetch(p,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Failed to load "+p);return r.text();})));
+    document.open();
+    document.write(text.join(""));
+    document.close();
+  }catch(e){
+    document.body.innerHTML='<pre style="font:14px monospace;padding:24px">MTE Engine Preview failed to load. '+String(e)+'</pre>';
+  }
+})();
+</script>
+</body>
+</html>
