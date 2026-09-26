@@ -427,6 +427,7 @@
   async function mteExpandedStrategyLab(){
     addExpandedUI();
     const asset=document.getElementById('btAsset')?.value||'QQQ',cfg=getBTConfig(),stage=document.getElementById('mteLabStage')?.value||'discovery';
+    window.__mteActiveLabStage=stage;
     const selected=Array.from(document.querySelectorAll('.mte-strategy-check:checked')).map(x=>x.value);
     const panel=document.getElementById('mteExpandedResultsBody');
     const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
