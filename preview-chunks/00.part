@@ -140,6 +140,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 <script>
 function toggleTechnicalOptimiserFilters(){const box=document.getElementById("technicalOptimiserControls"),btn=document.getElementById("technicalOptimiserToggle");if(!box||!btn)return;const hidden=box.dataset.collapsed==="1";Array.from(box.children).slice(1).forEach(el=>el.style.display=hidden?"":"none");box.dataset.collapsed=hidden?"0":"1";btn.textContent=hidden?"HIDE FILTERS ▾":"SHOW FILTERS ▸";}
 </script><div class="detail-grid" id="backtestResults"></div>
+ <div class="box" id="backtestHistory" style="margin-top:15px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">PREVIOUS BACKTESTS</h3><button type="button" onclick="toggleBacktestHistory()">HIDE HISTORY ▾</button></div><div class="sub" id="backtestHistoryBody" style="margin-top:10px">No previous runs in this session.</div></div>
  <div id="btTrades"></div>
  <div class="box" style="margin-top:15px"><h3>STRATEGY / ASSET TESTING</h3><div class="sub" id="btExplanation">Select any asset and strategy above. The paper engine can test the same asset across Macro 01, Technical 01 and later Weighted 01 without changing the asset universe.</div></div>
  </section>
