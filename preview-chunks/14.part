@@ -119,23 +119,78 @@ async function runBacktest(){
  }catch(e){if(window.__mteBacktestRunId===runId){status.textContent='ERROR';results.innerHTML='<div class="box"><h3>BACKTEST FAILED</h3><div class="sub">'+e.message+'</div></div>';document.getElementById('btExplanation').textContent='BACKTEST FAILED · '+e.message;}}
  finally{if(runButton){runButton.disabled=false;runButton.textContent='RUN BACKTEST';}}
 }
+async function readOptimiserFilters(){
+ const num=(id,fallback)=>{const n=Number(document.getElementById(id)?.value);return Number.isFinite(n)?n:fallback;};
+ const checked=cls=>Array.from(document.querySelectorAll(cls+':checked')).map(x=>x.value);
+ let fastMin=Math.max(2,Math.min(100,Math.floor(num('optFastMin',2)))),fastMax=Math.max(2,Math.min(100,Math.floor(num('optFastMax',20))));
+ let slowMin=Math.max(3,Math.min(250,Math.floor(num('optSlowMin',10)))),slowMax=Math.max(3,Math.min(250,Math.floor(num('optSlowMax',100))));
+ if(fastMax<fastMin)[fastMin,fastMax]=[fastMax,fastMin];
+ if(slowMax<slowMin)[slowMin,slowMax]=[slowMax,slowMin];
+ return {
+  fastMin,fastMax,fastStep:Math.max(1,Math.floor(num('optFastStep',1))),
+  slowMin,slowMax,slowStep:Math.max(1,Math.floor(num('optSlowStep',10))),
+  minTrades:Math.max(0,Math.floor(num('optMinTrades',20))),
+  minReturn:num('optMinReturn',0),
+  minPF:Math.max(0,num('optMinPF',0)),
+  minSharpe:num('optMinSharpe',0),
+  maxDD:Math.max(0,num('optMaxDD',100)),
+  maxScenarios:Math.max(10,Math.floor(num('optMaxScenarios',3000))),
+  rankBy:document.getElementById('optRankBy')?.value||'totalReturn',
+  timeframes:checked('.opt-timeframe'),
+  exits:checked('.opt-exit')
+ };
+}
+function optimiseTechnicalMatrix(closes,dates,cfg,filters){
+ const scenarios=[];
+ for(let fast=filters.fastMin;fast<=filters.fastMax;fast+=filters.fastStep){
+  for(let slow=filters.slowMin;slow<=filters.slowMax;slow+=filters.slowStep){
+   if(fast>=slow)continue;
+   for(const timeframe of filters.timeframes.length?filters.timeframes:['4H context · 1H management · 15M execution']){
+    for(const exit of filters.exits.length?filters.exits:['STRUCTURE_1H']){
+     const r=technicalRun(closes,dates,fast,slow,cfg);
+     if(!r)continue;
+     if(r.trades<filters.minTrades||r.totalReturn<filters.minReturn||r.profitFactor<filters.minPF||r.sharpe<filters.minSharpe||r.maxDrawdown>filters.maxDD)continue;
+     scenarios.push({fast,slow,timeframe,exit,result:r});
+     if(scenarios.length>=filters.maxScenarios)break;
+    }
+    if(scenarios.length>=filters.maxScenarios)break;
+   }
+   if(scenarios.length>=filters.maxScenarios)break;
+  }
+  if(scenarios.length>=filters.maxScenarios)break;
+ }
+ const metric=filters.rankBy;
+ scenarios.sort((a,b)=>{
+  const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];
+  return metric==='maxDrawdown'?av-bv:bv-av;
+ });
+ return {scenarios,filters};
+}
 async function optimiseBacktest(){
  const strategyEl=document.getElementById('btStrategy'),status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
  strategyEl.value='technical';
- const asset=document.getElementById('btAsset').value,cfg=getBTConfig();
+ const asset=document.getElementById('btAsset').value,cfg=getBTConfig(),filters=readOptimiserFilters();
  status.textContent='OPTIMISING';
- explain.innerHTML='<b>TECHNICAL 01 OPTIMISATION RUNNING</b><br>Testing Fast/Slow MA combinations on the selected historical window. This can take a few seconds.';
+ explain.innerHTML='<b>TECHNICAL 01 OPTIMISATION RUNNING</b><br>Testing the selected MA, timeframe and exit-model scenario matrix against the full selected historical window.';
  let panel=document.getElementById('optimisationResults');
  if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'));}
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for optimisation.');
-  const opt=optimiseTechnical(closes,dates,cfg);
-  if(!opt.best||!Number.isFinite(opt.best.score))throw new Error('No valid MA combination was produced for this date range.');
-  document.getElementById('btFast').value=opt.best.fast;document.getElementById('btSlow').value=opt.best.slow;
-  const top=opt.pairs.slice(0,5).map((p,i)=>'<tr><td>'+(i+1)+'</td><td>'+p.fast+'</td><td>'+p.slow+'</td><td>'+((p.score>=0?'+':'')+p.score.toFixed(2))+'%</td><td>'+p.sharpe.toFixed(2)+'</td><td>'+p.trades+'</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL 01 · PARAMETER OPTIMISATION</h3><div class="row"><span>Asset / test window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Training split</span><b>'+dates[0]+' → '+dates[Math.max(0,opt.split-1)]+' (70%)</b></div><div class="row"><span>Selected parameters</span><b>FAST '+opt.best.fast+' / SLOW '+opt.best.slow+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>FAST</th><th>SLOW</th><th>TRAIN RETURN</th><th>SHARPE</th><th>TRADES</th></tr></thead><tbody>'+top+'</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" onclick="runBacktest()">RUN OPTIMISED BACKTEST</button></div>';
-  explain.innerHTML='<b>OPTIMISATION COMPLETE</b><br>Best training parameters are <b>FAST '+opt.best.fast+' / SLOW '+opt.best.slow+'</b>. Run the optimised backtest to validate those parameters on the out-of-sample period.';
+  if(!filters.timeframes.length||!filters.exits.length)throw new Error('Select at least one timeframe and one exit model.');
+  const totalPossible=Math.ceil((filters.fastMax-filters.fastMin+1)/filters.fastStep)*Math.ceil((filters.slowMax-filters.slowMin+1)/filters.slowStep)*filters.timeframes.length*filters.exits.length;
+  if(totalPossible>filters.maxScenarios)explain.innerHTML='<b>OPTIMISATION LIMITED</b><br>'+totalPossible.toLocaleString()+' scenarios are possible; the MAX SCENARIOS filter is '+filters.maxScenarios.toLocaleString()+'.';
+  const opt=optimiseTechnicalMatrix(closes,dates,cfg,filters);
+  if(!opt.scenarios.length)throw new Error('No scenarios passed the selected performance filters.');
+  const top=opt.scenarios.slice(0,100).map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+s.fast+'</td><td>'+s.slow+'</td><td>'+s.timeframe.split(' context')[0]+'</td><td>'+s.exit+'</td><td>'+s.result.trades+'</td><td>'+(s.result.totalReturn>=0?'+':'')+s.result.totalReturn.toFixed(2)+'%</td><td>$'+s.result.pnl.toFixed(2)+'</td><td>'+s.result.profitFactor.toFixed(2)+'</td><td>'+s.result.sharpe.toFixed(2)+'</td><td>'+s.result.maxDrawdown.toFixed(2)+'%</td><td>'+s.result.winRate.toFixed(1)+'%</td><td>'+s.result.averageReturn.toFixed(2)+'%</td></tr>').join('');
+  panel.innerHTML='<h3>TECHNICAL 01 · OPTIMISATION MATRIX</h3>'+
+   '<div class="row"><span>Asset / test window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div>'+
+   '<div class="row"><span>Scenarios tested / passed</span><b>'+totalPossible.toLocaleString()+' / '+opt.scenarios.length.toLocaleString()+'</b></div>'+
+   '<div class="row"><span>Ranking</span><b>'+filters.rankBy.replace(/([A-Z])/g,' $1').toUpperCase()+'</b></div>'+
+   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>FAST</th><th>SLOW</th><th>TIMEFRAME</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>P&amp;L</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th><th>AVG / TRADE</th></tr></thead><tbody>'+top+'</tbody></table></div>'+
+   '<div class="sub" style="margin-top:10px">Showing the top 100 passing scenarios. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
+  const best=opt.scenarios[0];
+  explain.innerHTML='<b>OPTIMISATION COMPLETE</b><br>Top scenario by <b>'+filters.rankBy+'</b>: FAST '+best.fast+' / SLOW '+best.slow+' · '+best.timeframe+' · '+best.exit+'.';
   status.textContent='OPTIMISED';
  }catch(e){
   panel.innerHTML='<h3>OPTIMISATION FAILED</h3><div class="sub">'+e.message+'</div>';
