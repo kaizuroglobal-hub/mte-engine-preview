@@ -111,43 +111,126 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
  </div>
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div><h3 style="margin:0">TECHNICAL STRATEGY LAB</h3><div class="sub">Stage 1 discovers strategy families. Stage 2 deeply optimises the strongest candidates. Stage 3 tests parameter and rolling-window robustness.</div></div>
-    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle Strategy Lab filters" title="Toggle filters">⌃</button>
+    <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">One workflow for Technical and Expanded MTE research. Select the research path, move through the three stages, then run the current stage.</div></div>
+    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle advanced Strategy Lab settings" title="Toggle advanced settings">⌄</button>
   </div>
-  <button type="button" onclick="runStrategyDiscovery()" class="mte-lab-run-btn primary" style="margin-top:12px">RUN STRATEGY LAB</button>
-  <div class="control-grid" style="margin-top:12px">
-    <label><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
-    <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
-    <label><span>MIN TOTAL RETURN %</span><input id="optMinReturn" type="number" step="0.1" value="0"></label>
-    <label><span>MIN PROFIT FACTOR</span><input id="optMinPF" type="number" min="0" step="0.05" value="0"></label>
-    <label><span>MIN SHARPE</span><input id="optMinSharpe" type="number" step="0.1" value="0"></label>
-    <label><span>MAX DRAWDOWN %</span><input id="optMaxDD" type="number" min="0" max="100" step="0.5" value="100"></label>
-    <label><span>TOP CANDIDATES</span><input id="labTopN" type="number" min="1" max="50" step="1" value="10"></label>
-    <label><span>RANK BY</span><select id="optRankBy"><option value="totalReturn">TOTAL RETURN</option><option value="sharpe">SHARPE</option><option value="profitFactor">PROFIT FACTOR</option><option value="maxDrawdown">LOWEST MAX DRAWDOWN</option><option value="averageReturn">AVERAGE RETURN / TRADE</option></select></label>
+
+  <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
+    <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH PATH</div>
+    <div id="strategyLabPath" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')">TECHNICAL</button>
+      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')">EXPANDED MTE</button>
+    </div>
+
+    <div style="font-size:11px;font-weight:800;margin:15px 0 8px">STEP 2 · RESEARCH STAGE</div>
+    <div id="strategyLabStages" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <button type="button" data-lab-stage="discovery" onclick="setStrategyLabStage('discovery')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>1 · DISCOVER</b><br><span class="sub">Find strategy families</span></button>
+      <button type="button" data-lab-stage="deep" onclick="setStrategyLabStage('deep')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>2 · OPTIMISE</b><br><span class="sub">Deep-search parameters</span></button>
+      <button type="button" data-lab-stage="robust" onclick="setStrategyLabStage('robust')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>3 · VALIDATE</b><br><span class="sub">Test OOS robustness</span></button>
+    </div>
+
+    <div id="strategyLabRunState" class="sub" style="margin-top:10px">Technical · Stage 1 · Discovery</div>
+    <button type="button" id="strategyLabRun" class="primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%;padding:11px">RUN STAGE 1 · DISCOVERY</button>
   </div>
-  <div style="margin-top:12px">
-    <span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">STRATEGY FAMILIES</span>
-    <div id="strategyFamilyChecks" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px"></div>
+
+  <div id="technicalLabAdvanced" style="margin-top:12px">
+    <div style="font-size:11px;font-weight:800;margin-bottom:8px">ADVANCED TECHNICAL SETTINGS</div>
+    <div class="control-grid">
+      <label style="display:none"><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
+      <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
+      <label><span>MIN TOTAL RETURN %</span><input id="optMinReturn" type="number" step="0.1" value="0"></label>
+      <label><span>MIN PROFIT FACTOR</span><input id="optMinPF" type="number" min="0" step="0.05" value="0"></label>
+      <label><span>MIN SHARPE</span><input id="optMinSharpe" type="number" step="0.1" value="0"></label>
+      <label><span>MAX DRAWDOWN %</span><input id="optMaxDD" type="number" min="0" max="100" step="0.5" value="100"></label>
+      <label><span>TOP CANDIDATES</span><input id="labTopN" type="number" min="1" max="50" step="1" value="10"></label>
+      <label><span>RANK BY</span><select id="optRankBy"><option value="totalReturn">TOTAL RETURN</option><option value="sharpe">SHARPE</option><option value="profitFactor">PROFIT FACTOR</option><option value="maxDrawdown">LOWEST MAX DRAWDOWN</option><option value="averageReturn">AVERAGE RETURN / TRADE</option></select></label>
+    </div>
+    <div style="margin-top:12px">
+      <span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">STRATEGY FAMILIES</span>
+      <div id="strategyFamilyChecks" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px"></div>
+    </div>
+    <div style="margin-top:12px">
+      <span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">EXIT MODELS</span>
+      <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="STRUCTURE" checked> STRUCTURE</label>
+      <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="FIXED_2R" checked> FIXED 2R</label>
+      <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="ATR_TRAIL" checked> ATR TRAIL</label>
+      <label style="display:inline-flex;align-items:center;gap:7px;font-size:11px"><input type="checkbox" class="lab-exit" value="TIME" checked> TIME</label>
+    </div>
+    <div class="sub" style="margin-top:10px">The committed historical cache is daily close data. Technical Strategy Lab therefore tests genuine daily logic only; intraday timeframes, VWAP and volume-dependent strategies require the intraday OHLCV cache before they can be tested honestly.</div>
   </div>
-  <div style="margin-top:12px">
-    <span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">EXIT MODELS</span>
-    <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="STRUCTURE" checked> STRUCTURE</label>
-    <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="FIXED_2R" checked> FIXED 2R</label>
-    <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="lab-exit" value="ATR_TRAIL" checked> ATR TRAIL</label>
-    <label style="display:inline-flex;align-items:center;gap:7px;font-size:11px"><input type="checkbox" class="lab-exit" value="TIME" checked> TIME</label>
-  </div>
-  <div class="sub" style="margin-top:10px">Current committed historical cache is daily close data. Strategy Lab therefore runs genuine daily logic only; intraday timeframes, VWAP and volume-dependent strategies require the intraday OHLCV cache before they can be tested honestly.</div>
 </div>
 <script>
+function setStrategyLabPath(path){
+ const p=path==='expanded'?'expanded':'technical';
+ window.__strategyLabPath=p;
+ const tech=document.getElementById('technicalLabAdvanced');
+ const expanded=document.getElementById('mteExpandedLab');
+ if(tech)tech.style.display=p==='technical'?'':'none';
+ if(expanded)expanded.style.display=p==='expanded'?'':'none';
+ document.querySelectorAll('[data-lab-path]').forEach(b=>{
+  const active=b.getAttribute('data-lab-path')===p;
+  b.className=active?'primary':'secondary';
+ });
+ const stage=document.getElementById('strategyLabStage')?.value||document.getElementById('labStage')?.value||'discovery';
+ setStrategyLabStage(stage,false);
+}
+function setStrategyLabStage(stage,scroll){
+ const s=['discovery','deep','robust'].includes(stage)?stage:'discovery';
+ window.__strategyLabStage=s;
+ const technical=document.getElementById('labStage'),expanded=document.getElementById('mteLabStage');
+ if(technical)technical.value=s;
+ if(expanded)expanded.value=s;
+ const labels={discovery:['1 · DISCOVER','Find strategy families'],deep:['2 · OPTIMISE','Deep-search parameters'],robust:['3 · VALIDATE','Test OOS robustness']};
+ document.querySelectorAll('[data-lab-stage]').forEach(b=>{
+  const active=b.getAttribute('data-lab-stage')===s;
+  b.style.background=active?'#eef2f6':'#fff';
+  b.style.borderColor=active?'#1f2937':'#cfd6de';
+ });
+ const path=window.__strategyLabPath||'technical';
+ const pathLabel=path==='expanded'?'Expanded MTE':'Technical';
+ const stageLabel=s==='discovery'?'Stage 1 · Discovery':s==='deep'?'Stage 2 · Deep Optimisation':'Stage 3 · Robustness & Validation';
+ const run=document.getElementById('strategyLabRun');
+ if(run)run.textContent='RUN '+stageLabel.toUpperCase();
+ const state=document.getElementById('strategyLabRunState');
+ if(state)state.textContent=pathLabel+' · '+stageLabel;
+ if(scroll){const box=document.getElementById(path==='expanded'?'mteExpandedLab':'optimisationResults');if(box)box.scrollIntoView({behavior:'smooth',block:'start'});}
+}
+function runCurrentStrategyLabStage(){
+ const path=window.__strategyLabPath||'technical';
+ const stage=window.__strategyLabStage||'discovery';
+ setStrategyLabStage(stage,false);
+ if(path==='expanded'){
+  if(typeof window.mteExpandedStrategyLab==='function')return window.mteExpandedStrategyLab();
+  return;
+ }
+ if(typeof runStrategyDiscovery==='function')return runStrategyDiscovery();
+}
 function openStrategyLabPanel(){
  const box=document.getElementById('technicalOptimiserControls');
  if(!box)return;
  box.scrollIntoView({behavior:'smooth',block:'start'});
  box.dataset.collapsed='0';
- Array.from(box.children).slice(1).forEach(el=>el.style.display='');
+ const advanced=document.getElementById('technicalLabAdvanced');
+ if(advanced)advanced.style.display=(window.__strategyLabPath||'technical')==='technical'?'':'none';
  const btn=document.getElementById('technicalOptimiserToggle');
- if(btn){btn.textContent='⌃';btn.setAttribute('aria-label','Collapse Strategy Lab filters');}
-}function toggleTechnicalOptimiserFilters(){const box=document.getElementById("technicalOptimiserControls"),btn=document.getElementById("technicalOptimiserToggle");if(!box||!btn)return;const hidden=box.dataset.collapsed==="1";Array.from(box.children).slice(1).forEach(el=>el.style.display=hidden?"":"none");box.dataset.collapsed=hidden?"0":"1";btn.textContent=hidden?"⌃":"⌄";btn.setAttribute("aria-label",hidden?"Collapse Strategy Lab filters":"Expand Strategy Lab filters");}
+ if(btn){btn.textContent='⌃';btn.setAttribute('aria-label','Collapse advanced Strategy Lab settings');}
+}
+function toggleTechnicalOptimiserFilters(){
+ const advanced=document.getElementById('technicalLabAdvanced'),btn=document.getElementById('technicalOptimiserToggle');
+ if(!advanced||!btn)return;
+ const hidden=advanced.dataset.collapsed==='1';
+ advanced.style.display=hidden?'':'none';
+ advanced.dataset.collapsed=hidden?'0':'1';
+ btn.textContent=hidden?'⌃':'⌄';
+ btn.setAttribute('aria-label',hidden?'Collapse advanced Strategy Lab settings':'Expand advanced Strategy Lab settings');
+}
+function initStrategyLabWorkflow(){
+ window.__strategyLabPath='technical';
+ window.__strategyLabStage='discovery';
+ setStrategyLabPath('technical');
+ setStrategyLabStage('discovery',false);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initStrategyLabWorkflow);else initStrategyLabWorkflow();
 </script><div class="detail-grid" id="backtestResults"></div>
  <div class="box" id="backtestHistory" style="margin-top:15px"><div class="mte-collapse-head"><h3>PREVIOUS BACKTESTS</h3><button type="button" class="mte-collapse-toggle" onclick="toggleBacktestHistory()" aria-label="Toggle previous backtests" title="Toggle previous backtests">⌃</button></div><div class="mte-collapse-body" id="backtestHistoryBody">No previous runs in this session.</div></div>
  <div id="btTrades"></div>
