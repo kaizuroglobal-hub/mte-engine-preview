@@ -1,0 +1,16 @@
+<script>
+(function(){
+ const E=window.MTEOpportunityEngine;if(!E)return;
+ const old=E.makeOpportunity;
+ E.makeOpportunity=function(event,c,p,i){
+   const o=old(event,c,p,i);
+   o.position.initialAllocation=10000;
+   o.position.maxExposure=50000;
+   o.position.maxConcurrent=5;
+   o.position.riskDollars=10000*(Number(event.riskPct||1)/100);
+   o.durationStudy=(o.durationStudy||[]).filter(x=>!['1H','4H','24H'].includes(x.id));
+   return o;
+ };
+ window.MTEOpportunityEngine=E;
+})();
+</script>
