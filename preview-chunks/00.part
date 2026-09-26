@@ -170,6 +170,12 @@ function setStrategyLabPath(path){
  document.querySelectorAll('[data-lab-path]').forEach(b=>{
   const active=b.getAttribute('data-lab-path')===p;
   b.className=active?'primary':'secondary';
+  b.setAttribute('aria-pressed',active?'true':'false');
+  b.dataset.selected=active?'1':'0';
+  b.style.fontWeight='800';
+  b.style.borderWidth=active?'2px':'1px';
+  b.style.boxShadow=active?'inset 0 0 0 1px rgba(255,255,255,.35)':'none';
+  b.style.opacity=active?'1':'0.72';
  });
  const stage=document.getElementById('strategyLabStage')?.value||document.getElementById('labStage')?.value||'discovery';
  setStrategyLabStage(stage,false);
