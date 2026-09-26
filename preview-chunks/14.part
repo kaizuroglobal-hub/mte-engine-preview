@@ -186,10 +186,12 @@ function labGrid(type,stage){
 }
 function labFilter(r,f){return r&&r.trades>=f.minTrades&&r.totalReturn>=f.minReturn&&r.profitFactor>=f.minPF&&r.sharpe>=f.minSharpe&&r.maxDrawdown<=f.maxDD}
 function labRank(arr,metric){return arr.sort((a,b)=>{const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];return metric==='maxDrawdown'?av-bv:bv-av})}
-function labProgressHTML(){
+function labProgressHTML(activeStage){
  const p=window.__mteLabProgress||{discovery:0,deep:0,robust:0};
- const rows=[['STAGE 1 · DISCOVERY',p.discovery],['STAGE 2 · DEEP OPTIMISATION',p.deep],['STAGE 3 · ROBUSTNESS',p.robust]];
- return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS</h3>'+rows.map(x=>'<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+x[0]+'</span><span>'+Math.round(x[1])+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,x[1]))+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div>').join('')+'</div>';
+ const stage=activeStage||window.__mteActiveLabStage||'discovery';
+ const map={discovery:['STAGE 1 · DISCOVERY','discovery'],deep:['STAGE 2 · DEEP OPTIMISATION','deep'],robust:['STAGE 3 · ROBUSTNESS','robust']};
+ const row=map[stage]||map.discovery, value=Number(p[row[1]]||0);
+ return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS · '+row[0]+'</h3><div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+row[0]+' PROGRESS</span><span>'+Math.round(value)+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,value))+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div></div>';
 }
 function mteEnsureCollapsible(el){
  if(!el)return;
@@ -206,11 +208,12 @@ function mteEnsureCollapsible(el){
 }
 function updateLabProgress(patch){
  window.__mteLabProgress={...(window.__mteLabProgress||{discovery:0,deep:0,robust:0}),...patch};
+ const active=window.__mteActiveLabStage||'discovery';
  const old=document.getElementById('strategyLabProgress');
- if(old)old.outerHTML=labProgressHTML();
+ if(old)old.outerHTML=labProgressHTML(active);
  else{
   const panel=document.getElementById('optimisationResults');
-  if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML());
+  if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML(active));
  }
 }
 async function runStrategyDiscovery(){
