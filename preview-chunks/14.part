@@ -245,25 +245,10 @@ function updateLabProgress(patch){
   if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML(active));
  }
 }
-function labHistoryKey(){return 'mteStrategyLabHistory:v3';}
+function labHistoryKey(){return 'mteStrategyLabHistory:v4';}
 function loadLabHistory(){try{const raw=localStorage.getItem(labHistoryKey()),parsed=raw?JSON.parse(raw):[];return Array.isArray(parsed)?parsed:[];}catch(e){return []}}
-function saveLabHistoryEntry(entry){
- try{
-  const history=loadLabHistory();
-  history.push(entry);
-  let keep=history.slice(-10);
-  while(keep.length){
-   try{localStorage.setItem(labHistoryKey(),JSON.stringify(keep));return true;}catch(e){keep.shift();}
-  }
- }catch(e){}
- return false;
-}
-function capturePreviousLabRun(panel){
- if(!panel||panel.dataset.labCompleted!=='1')return;
- const body=panel.querySelector(':scope > .mte-collapse-body'),html=body?body.innerHTML:panel.innerHTML;
- if(!html||html.includes('Preparing ')||html.includes('Running '))return;
- saveLabHistoryEntry({id:Date.now(),timestamp:new Date().toISOString(),stage:panel.dataset.labStage||window.__strategyLabStage||'discovery',path:panel.dataset.labPath||window.__strategyLabPath||'technical',asset:panel.dataset.labAsset||'',html});
-}
+function saveLabHistoryEntry(entry){try{const history=loadLabHistory();history.push({...entry,id:entry.id||Date.now(),timestamp:entry.timestamp||new Date().toISOString()});localStorage.setItem(labHistoryKey(),JSON.stringify(history.slice(-50)));return true;}catch(e){return false;}}
+function capturePreviousLabRun(panel){if(!panel||panel.dataset.labCompleted!=='1')return;const body=panel.querySelector(':scope > .mte-collapse-body'),html=body?body.innerHTML:panel.innerHTML;if(!html||html.includes('Preparing ')||html.includes('Running '))return;const run=window.__mteLabCurrentRun||{};saveLabHistoryEntry({id:run.id||Date.now(),timestamp:run.timestamp||new Date().toISOString(),stage:run.stage||panel.dataset.labStage||'discovery',path:run.path||panel.dataset.labPath||window.__strategyLabPath||'technical',asset:run.asset||panel.dataset.labAsset||'',families:run.families||[],exits:run.exits||[],html});window.__mteLabCurrentRun=null;}
 function renderLabHistory(){
  let box=document.getElementById('strategyLabHistory'),anchor=document.getElementById('optimisationResults');
  if(!anchor)return;
@@ -445,6 +430,7 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
  if(rows[0])explain.innerHTML='<b>ROBUSTNESS COMPLETE</b><br>'+STRATEGY_LIBRARY[rows[0].r.type].name+' · OOS PF '+(rows[0].oos?.profitFactor||0).toFixed(2)+' · stability '+Math.round(rows[0].stab.score*100)+'% · '+(rows[0].robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'.';
  else explain.textContent='ROBUSTNESS COMPLETE · No validation candidates were generated.';
  panel.dataset.labCompleted='1';
+ capturePreviousLabRun(panel);
  renderLabHistory();
  status.textContent='ROBUSTNESS COMPLETE';
 }
@@ -477,9 +463,9 @@ function initStrategyLabFamilies(){
   ['OSCILLATOR / MEAN REVERSION',['RSI_MEAN_REVERSION','RSI_MOMENTUM','BOLLINGER_REVERSION','MACD']],
   ['MULTI-FACTOR',['MULTI_FACTOR']]
  ];
- box.innerHTML=groups.map(([group,items])=>'<div style="grid-column:1/-1;font-size:10px;font-weight:900;margin-top:7px;padding:4px 0;border-bottom:1px solid #e1e5ea">'+group+'</div>'+items.map(x=>'<label class="lab-family-card"><input type="checkbox" class="lab-family" value="'+x+'" checked><span style="flex:1"><b>'+STRATEGY_LIBRARY[x].name+'</b><br><span class="sub">'+STRATEGY_LIBRARY[x].desc+'</span></span><button type="button" class="secondary lab-family-test" data-family="'+x+'" onclick="event.preventDefault();event.stopPropagation();runSingleTechnicalFamily(\'+x+'\')">TEST</button></label>').join('')).join('');
+ box.innerHTML=groups.map(([group,items])=>'<div style="grid-column:1/-1;font-size:10px;font-weight:900;margin-top:7px;padding:4px 0;border-bottom:1px solid #e1e5ea">'+group+'</div>'+items.map(x=>'<label class="lab-family-card"><input type="checkbox" class="lab-family" value="'+x+'"><span style="flex:1"><b>'+STRATEGY_LIBRARY[x].name+'</b><br><span class="sub">'+STRATEGY_LIBRARY[x].desc+'</span></span><button type="button" class="secondary lab-family-test" data-family="'+x+'">TEST</button></label>').join('')).join('');
  const core=['MA_CROSSOVER','EMA_MOMENTUM','RSI_MOMENTUM','MACD','BREAKOUT','DONCHIAN','BOLLINGER_BREAKOUT','ATR_BREAKOUT','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY','MULTI_FACTOR'];
- box.querySelectorAll('.lab-family').forEach(x=>{x.checked=core.includes(x.value);x.addEventListener('change',updateStrategyFamilyCount);});
+ box.querySelectorAll('.lab-family').forEach(x=>{x.checked=core.includes(x.value);x.addEventListener('change',updateStrategyFamilyCount);}); box.querySelectorAll('.lab-family-test').forEach(btn=>btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();runSingleTechnicalFamily(btn.dataset.family);}));
  const controls=document.createElement('div');
  controls.style.cssText='grid-column:1/-1;display:flex;gap:7px;margin-bottom:3px';
  controls.innerHTML='<button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'core\')" style="padding:6px 9px;font-size:10px">CORE TECHNICAL SET</button><button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'all\')" style="padding:6px 9px;font-size:10px">ALL AVAILABLE</button><button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'none\')" style="padding:6px 9px;font-size:10px">CLEAR</button>';
