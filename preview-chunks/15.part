@@ -1,0 +1,462 @@
+<script>
+(function(){
+  const NEW = {
+    TIME_SERIES_MOMENTUM:{name:'Time-Series Momentum',desc:'Absolute momentum: long positive trends, short negative trends',params:'lookback'},
+    CROSS_SECTIONAL_MOMENTUM:{name:'Cross-Sectional Momentum',desc:'Long relative winners and short relative losers across the universe',params:'lookback/topPct'},
+    RELATIVE_STRENGTH_ROTATION:{name:'Relative Strength Rotation',desc:'Rotate into strongest assets and away from weakest',params:'lookback/topN'},
+    CORRELATION_CONFIRMATION:{name:'Correlation Confirmation',desc:'Trade a signal only when a positively correlated market confirms direction',params:'corrLookback/momentum'},
+    NEGATIVE_CORRELATION_DIVERGENCE:{name:'Negative-Correlation Divergence',desc:'Pair assets with inverse rolling correlation and opposing momentum',params:'corrLookback/momentum'},
+    LOW_CORRELATION_TREND:{name:'Low-Correlation Trend Portfolio',desc:'Select trending assets while penalising correlated exposures',params:'lookback/corrMax'},
+    CROSS_ASSET_MOMENTUM:{name:'Cross-Asset Momentum',desc:'Combine multiple horizons and asset classes into one directional score',params:'short/medium/long'},
+    CORRELATION_REGIME:{name:'Correlation Regime',desc:'Change exposure as cross-asset correlation clusters rise or fall',params:'corrLookback/high/low'},
+    PAIRS_SPREAD:{name:'Pairs / Spread Mean Reversion',desc:'Trade statistically stretched relative spreads between two assets',params:'lookback/zEntry/zExit'},
+    COINTEGRATION:{name:'Cointegration / Statistical Arbitrage',desc:'Engle-Granger-style spread test with rolling hedge ratio and mean reversion',params:'lookback/zEntry/zExit'},
+    RISK_ON_OFF:{name:'Risk-On / Risk-Off Rotation',desc:'Use equity, bonds and gold leadership to rotate macro exposure',params:'lookback'},
+    MACRO_REGIME_ROTATION:{name:'Macro Regime Rotation',desc:'Allocate to the strongest assets conditional on a broad risk regime',params:'lookback/topN'},
+    VOL_TARGET_TREND:{name:'Volatility-Targeted Trend',desc:'Trend-following with inverse-volatility position sizing',params:'lookback/volLookback/targetVol'},
+    TREND_VOLATILITY_MACRO:{name:'Trend + Volatility Macro',desc:'Trend signal gated by realised volatility regime',params:'lookback/volLookback/volMax'},
+    MOMENTUM_VOLATILITY:{name:'Momentum + Volatility',desc:'Momentum weighted by risk-adjusted strength',params:'lookback/volLookback'},
+    BREAKOUT_REGIME:{name:'Breakout + Regime',desc:'Price breakout filtered by cross-asset risk regime',params:'lookback/regimeLookback'},
+    VALUE_MOMENTUM_PROXY:{name:'Value + Momentum Proxy',desc:'Price-only value proxy combined with momentum; true fundamental value requires fundamentals',params:'valueLookback/momentumLookback'},
+    CARRY:{name:'Carry',desc:'Requires forward/yield data; included in architecture but not scored from close-only data',params:'forward/yield data required'},
+    FUNDAMENTAL_VALUE:{name:'Fundamental Value',desc:'Requires valuation/fundamental data; included in architecture but not scored from close-only data',params:'valuation data required'}
+  };
+  Object.keys(NEW).forEach(k=>{ if(typeof STRATEGY_LIBRARY!=='undefined') STRATEGY_LIBRARY[k]=NEW[k]; });
+
+  const ACTIVE = Object.keys(NEW).filter(k=>!['CARRY','FUNDAMENTAL_VALUE'].includes(k));
+  const UNIVERSE = ['SPY','QQQ','IWM','DIA','EFA','EEM','TLT','IEF','SHY','GLD','SLV','USO','DBC','XLE','XLF','XLU','VNQ','UUP','FXE','FXY','FXA','FXB','BTC-USD','ETH-USD','EURUSD=X','GBPUSD=X','AUDUSD=X','NZDUSD=X','USDJPY=X','USDCAD=X','GC=F','CL=F','HG=F'];
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+  const stdev=a=>a.length>1?Math.sqrt(mean(a.map(x=>(x-mean(a))**2))):0;
+  const corr=(a,b)=>{
+    const n=Math.min(a.length,b.length); if(n<5)return 0;
+    const aa=a.slice(-n),bb=b.slice(-n),ma=mean(aa),mb=mean(bb);
+    let num=0,da=0,db=0;
+    for(let i=0;i<n;i++){const x=aa[i]-ma,y=bb[i]-mb;num+=x*y;da+=x*x;db+=y*y;}
+    return da&&db?num/Math.sqrt(da*db):0;
+  };
+  const pct=(a,b)=>b?((a/b)-1)*100:0;
+  const ret=(a,n)=>a.length>n?pct(a[a.length-1],a[a.length-1-n]):0;
+  const daily=a=>a.slice(1).map((x,i)=>x/a[i]-1);
+  const rollingVol=(a,n)=>{
+    const r=daily(a).slice(-n);
+    return r.length>1?stdev(r)*Math.sqrt(252):0;
+  };
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+  function summaryReturns(rets,dates,label,turnovers){
+    const clean=rets.map(x=>Number.isFinite(x)?x:0);
+    let equity=1,peak=1,maxDD=0,pos=0,neg=0,active=0,sum=0;
+    for(const r of clean){
+      equity*=1+r;
+      peak=Math.max(peak,equity);
+      maxDD=Math.max(maxDD,peak?((peak-equity)/peak)*100:0);
+      if(r>0)pos+=r;
+      if(r<0)neg+=r;
+      if(Math.abs(r)>1e-12)active++;
+      sum+=r;
+    }
+    const sd=stdev(clean),sharpe=sd?mean(clean)/sd*Math.sqrt(252):0;
+    const years=Math.max(1,clean.length/252);
+    const cagr=(Math.pow(Math.max(0.000001,equity),1/years)-1)*100;
+    const trades=(turnovers||[]).filter(x=>x>0.000001).length;
+    return {
+      type:'MTE_EXPANDED',strategy:label,bars:clean.length,trades,winRate:active?pos/(pos+Math.abs(neg))*100:0,
+      averageReturn:mean(clean)*100,totalReturn:(equity-1)*100,cagr,profitFactor:neg?pos/Math.abs(neg):0,
+      sharpe,maxDrawdown:maxDD,endingEquity:equity,turnover:mean(turnovers||[]),
+      startDate:dates?.[0]||'',endDate:dates?.[dates.length-1]||''
+    };
+  }
+
+  function applyCost(rets,turnovers,cfg){
+    const cost=typeof btCostPct==='function'?btCostPct(cfg)/100:0.0005;
+    return rets.map((r,i)=>r-(turnovers?.[i]||0)*cost);
+  }
+
+  function alignedUniverse(raw,masterSymbol,from,to){
+    const master=raw[masterSymbol]?.filter(x=>(!from||x.date>=from)&&(!to||x.date<=to))||[];
+    if(master.length<120)throw new Error('Selected asset does not have enough historical cache for the expanded Strategy Lab.');
+    const dates=master.map(x=>x.date);
+    const maps={};
+    Object.entries(raw).forEach(([s,rows])=>{maps[s]=new Map(rows.map(x=>[x.date,x.close]));});
+    const symbols=Object.keys(raw).filter(s=>maps[s]&&maps[s].size>0);
+    const series={};
+    symbols.forEach(s=>{
+      const vals=dates.map(d=>maps[s].get(d));
+      const valid=vals.filter(v=>Number.isFinite(v)).length;
+      if(valid>=Math.max(120,dates.length*.75))series[s]=vals;
+    });
+    const usableDates=[];
+    const usable={};
+    dates.forEach((d,i)=>{
+      const ok=Object.keys(series).filter(s=>Number.isFinite(series[s][i])).length>=3;
+      if(ok){usableDates.push(d);Object.keys(series).forEach(s=>{if(!usable[s])usable[s]=[];usable[s].push(series[s][i]);});}
+    });
+    return {dates:usableDates,series:usable,symbols:Object.keys(usable)};
+  }
+
+  async function loadRawUniverse(asset,cfg){
+    const symbols=[asset,...UNIVERSE].filter((x,i,a)=>a.indexOf(x)===i);
+    const raw={};
+    const out=await Promise.all(symbols.map(async s=>{
+      try{return [s,await fetchYahooHistory(s)];}catch(e){return null;}
+    }));
+    out.filter(Boolean).forEach(x=>raw[x[0]]=x[1]);
+    return alignedUniverse(raw,asset,cfg.start,cfg.end);
+  }
+
+  function priceReturns(p){
+    return p.map((x,i)=>i?x/p[i-1]-1:0);
+  }
+  function signalTrend(p,look){
+    return p.map((_,i)=>i<look?0:(p[i]/p[i-look]-1)>=0?1:-1);
+  }
+  function weightsFromSignals(sigByAsset,i,selected){
+    const vals=selected.map(s=>sigByAsset[s][i]).filter(x=>x!==0);
+    if(!vals.length)return {};
+    const w=1/vals.length,out={};
+    selected.forEach(s=>{if(sigByAsset[s][i]!==0)out[s]=sigByAsset[s][i]*w;});
+    return out;
+  }
+
+  function backtestWeights(ds,weightFn,cfg,label){
+    const {dates,series,symbols}=ds, retMap={};
+    symbols.forEach(s=>retMap[s]=priceReturns(series[s]));
+    const rets=[],turn=[];
+    let prev={};
+    for(let i=1;i<dates.length;i++){
+      const w=weightFn(i,retMap,series,symbols)||{};
+      let r=0,t=0;
+      symbols.forEach(s=>{
+        const wi=Number(w[s]||0),wp=Number(prev[s]||0),rr=Number(retMap[s][i]||0);
+        r+=wi*rr;t+=Math.abs(wi-wp);
+      });
+      rets.push(r);turn.push(t);prev=w;
+    }
+    const net=applyCost(rets,turn,cfg);
+    return {...summaryReturns(net,dates.slice(1),label,turn),weights:turn,returns:net,dates:dates.slice(1)};
+  }
+
+  function pairStats(a,b,look){
+    const ra=priceReturns(a),rb=priceReturns(b);
+    return corr(ra.slice(-look),rb.slice(-look));
+  }
+
+  function rollingSpread(a,b,look,i){
+    const aa=a.slice(Math.max(0,i-look),i+1),bb=b.slice(Math.max(0,i-look),i+1);
+    if(aa.length<30||bb.length<30)return null;
+    const mb=mean(bb),ma=mean(aa);
+    let num=0,den=0;
+    for(let j=0;j<aa.length;j++){num+=(bb[j]-mb)*(aa[j]-ma);den+=(bb[j]-ma)**2;}
+    const beta=den?num/den:1;
+    const spread=aa[aa.length-1]-beta*bb[bb.length-1];
+    const spreads=aa.map((x,j)=>x-beta*bb[j]),sm=mean(spreads),ss=stdev(spreads);
+    return {beta,z:ss?(spread-sm)/ss:0};
+  }
+
+  function expandedStrategy(ds,type,p,cfg){
+    const {series,symbols}=ds;
+    const look=p.lookback||63;
+    if(type==='TIME_SERIES_MOMENTUM'){
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        const out={};syms.forEach(s=>{if(i>=look)out[s]=(ser[s][i]/ser[s][i-look]-1)>=0?1:-1;});
+        return out;
+      },cfg,'MTE · Time-Series Momentum');
+    }
+    if(type==='CROSS_SECTIONAL_MOMENTUM'||type==='RELATIVE_STRENGTH_ROTATION'){
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<look)return {};
+        const ranked=syms.map(s=>({s,r:ser[s][i]/ser[s][i-look]-1})).filter(x=>Number.isFinite(x.r)).sort((a,b)=>b.r-a.r);
+        if(ranked.length<4)return {};
+        const n=type==='CROSS_SECTIONAL_MOMENTUM'?Math.max(1,Math.floor(ranked.length*(p.topPct||.25))):Math.max(1,p.topN||3);
+        const top=ranked.slice(0,n),bot=ranked.slice(-n),out={};
+        top.forEach(x=>out[x.s]=1/(2*n));bot.forEach(x=>out[x.s]=-1/(2*n));
+        return out;
+      },cfg,'MTE · '+NEW[type].name);
+    }
+    if(type==='CORRELATION_CONFIRMATION'){
+      const target=ds.symbols.includes(p.target)?p.target:ds.symbols[0],lookC=p.corrLookback||60;
+      const peers=ds.symbols.filter(s=>s!==target);
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(lookC,look))return {};
+        const rt=rm[target].slice(i-lookC,i),best=peers.map(s=>({s,c:corr(rt,rm[s].slice(i-lookC,i))})).sort((a,b)=>b.c-a.c)[0];
+        const tm=ser[target][i]/ser[target][i-look]-1,pm=best?ser[best.s][i]/ser[best.s][i-look]-1:0;
+        return best&&Math.sign(tm)===Math.sign(pm)?{[target]:Math.sign(tm)}:{};
+      },cfg,'MTE · Correlation Confirmation');
+    }
+    if(type==='NEGATIVE_CORRELATION_DIVERGENCE'){
+      const target=ds.symbols.includes(p.target)?p.target:ds.symbols[0],lookC=p.corrLookback||60;
+      const peers=ds.symbols.filter(s=>s!==target);
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(lookC,look))return {};
+        const rt=rm[target].slice(i-lookC,i),best=peers.map(s=>({s,c:corr(rt,rm[s].slice(i-lookC,i))})).sort((a,b)=>a.c-b.c)[0];
+        const tm=ser[target][i]/ser[target][i-look]-1,pm=best?ser[best.s][i]/ser[best.s][i-look]-1:0;
+        if(!best||best.c>-.15||Math.sign(tm)===Math.sign(pm)||tm===0||pm===0)return {};
+        return {[target]:Math.sign(tm)*.5,[best.s]:-Math.sign(tm)*.5};
+      },cfg,'MTE · Negative-Correlation Divergence');
+    }
+    if(type==='LOW_CORRELATION_TREND'){
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(look,p.corrLookback||60))return {};
+        const candidates=syms.map(s=>({s,m:ser[s][i]/ser[s][i-look]-1,v:stdev(rm[s].slice(Math.max(1,i-(p.volLookback||20)),i))*Math.sqrt(252)})).filter(x=>Number.isFinite(x.m)).sort((a,b)=>b.m-a.m);
+        const chosen=[];
+        for(const x of candidates){
+          if(x.m<=0)continue;
+          if(chosen.every(y=>Math.abs(corr(rm[x.s].slice(i-(p.corrLookback||60),i),rm[y.s].slice(i-(p.corrLookback||60),i)))<=(p.corrMax||.35)))chosen.push(x);
+          if(chosen.length>4)break;
+        }
+        const out={};if(chosen.length)chosen.forEach(x=>out[x.s]=1/chosen.length);return out;
+      },cfg,'MTE · Low-Correlation Trend Portfolio');
+    }
+    if(type==='CROSS_ASSET_MOMENTUM'){
+      const l1=p.short||21,l2=p.medium||63,l3=p.long||252;
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<l3)return {};
+        const ranked=syms.map(s=>({s,score:.25*(ser[s][i]/ser[s][i-l1]-1)+.25*(ser[s][i]/ser[s][i-l2]-1)+.5*(ser[s][i]/ser[s][i-l3]-1)})).filter(x=>Number.isFinite(x.score)).sort((a,b)=>b.score-a.score);
+        if(ranked.length<4)return {};
+        const n=Math.max(1,Math.floor(ranked.length*.25)),out={};ranked.slice(0,n).forEach(x=>out[x.s]=1/(2*n));ranked.slice(-n).forEach(x=>out[x.s]=-1/(2*n));return out;
+      },cfg,'MTE · Cross-Asset Momentum');
+    }
+    if(type==='CORRELATION_REGIME'){
+      const cl=p.corrLookback||60, high=p.high||.65, low=p.low||.25, benchmark=ds.symbols.includes('SPY')?'SPY':ds.symbols[0];
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<cl+look)return {};
+        const rs=syms.filter(s=>s!==benchmark).map(s=>corr(rm[benchmark].slice(i-cl,i),rm[s].slice(i-cl,i))).filter(Number.isFinite);
+        const avg=mean(rs),m=ser[benchmark][i]/ser[benchmark][i-look]-1;
+        if(avg>=high)return {[benchmark]:m>=0?0:-1};
+        if(avg<=low)return {[benchmark]:m>=0?1:-1};
+        return {};
+      },cfg,'MTE · Correlation Regime');
+    }
+    if(type==='PAIRS_SPREAD'||type==='COINTEGRATION'){
+      const a=ds.symbols.includes(p.a)?p.a:ds.symbols[0],b=ds.symbols.includes(p.b)?p.b:ds.symbols.find(s=>s!==a);
+      if(!a||!b)return summaryReturns([],ds.dates,'MTE · '+NEW[type].name,[]);
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<look)return {};
+        const st=rollingSpread(ser[a],ser[b],look,i);if(!st)return {};
+        const ze=p.zEntry||2, zx=p.zExit||.5;
+        if(Math.abs(st.z)<zx)return {};
+        if(Math.abs(st.z)>=ze)return st.z>0?{[a]:-.5,[b]:.5}:{[a]:.5,[b]:-.5};
+        return {};
+      },cfg,'MTE · '+NEW[type].name);
+    }
+    if(type==='RISK_ON_OFF'||type==='MACRO_REGIME_ROTATION'){
+      const eq=ds.symbols.includes('SPY')?'SPY':ds.symbols[0],bond=ds.symbols.includes('TLT')?'TLT':ds.symbols.find(s=>/TLT|IEF/.test(s)),gold=ds.symbols.includes('GLD')?'GLD':ds.symbols.find(s=>/GLD|GC=F/.test(s));
+      const riskSet=[eq,bond,gold].filter(Boolean);
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<look)return {};
+        const score=riskSet.map(s=>ser[s][i]/ser[s][i-look]-1),risk=score[0]||0,b=score[1]||0,g=score[2]||0;
+        if(type==='RISK_ON_OFF'){
+          if(risk>0&&b<=0)return {[eq]:.5,...(gold?{[gold]:.5}:{})};
+          if(risk<0&&b>0)return {[bond]:.5,...(gold?{[gold]:.5}:{})};
+          return {};
+        }
+        const ranked=riskSet.map(s=>({s,m:ser[s][i]/ser[s][i-look]-1})).sort((a,b)=>b.m-a.m),out={};ranked.slice(0,Math.min(p.topN||1,ranked.length)).forEach(x=>out[x.s]=1/Math.min(p.topN||1,ranked.length));return out;
+      },cfg,'MTE · '+NEW[type].name);
+    }
+    if(type==='VOL_TARGET_TREND'){
+      const targetVol=p.targetVol||.10,vl=p.volLookback||20;
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(look,vl))return {};
+        const raw={};syms.forEach(s=>{const m=ser[s][i]/ser[s][i-look]-1,v=stdev(rm[s].slice(i-vl,i))*Math.sqrt(252);if(Number.isFinite(m)&&v>0)raw[s]=Math.sign(m)*Math.min(.25,targetVol/v);});
+        const scale=Object.values(raw).reduce((s,x)=>s+Math.abs(x),0)||1;Object.keys(raw).forEach(s=>raw[s]/=scale);return raw;
+      },cfg,'MTE · Volatility-Targeted Trend');
+    }
+    if(type==='TREND_VOLATILITY_MACRO'||type==='MOMENTUM_VOLATILITY'){
+      const vl=p.volLookback||20;
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(look,vl))return {};
+        const ranked=syms.map(s=>{const m=ser[s][i]/ser[s][i-look]-1,v=stdev(rm[s].slice(i-vl,i))*Math.sqrt(252);return {s,m,v,score:type==='MOMENTUM_VOLATILITY'?(v?m/v:0):m};}).filter(x=>Number.isFinite(x.score)).sort((a,b)=>b.score-a.score);
+        if(type==='TREND_VOLATILITY_MACRO'){
+          const out={};ranked.filter(x=>x.v>0&&x.v<=(p.volMax||.45)&&x.m>0).slice(0,4).forEach(x=>out[x.s]=.25);return out;
+        }
+        const n=Math.max(1,Math.floor(ranked.length*.25)),out={};ranked.slice(0,n).forEach(x=>out[x.s]=1/(2*n));ranked.slice(-n).forEach(x=>out[x.s]=-1/(2*n));return out;
+      },cfg,'MTE · '+NEW[type].name);
+    }
+    if(type==='BREAKOUT_REGIME'){
+      const bench=ds.symbols.includes('SPY')?'SPY':ds.symbols[0],rl=p.regimeLookback||63;
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(look,rl))return {};
+        const bm=ser[bench][i]/ser[bench][i-rl]-1, out={};
+        syms.forEach(s=>{const hi=Math.max(...ser[s].slice(i-look,i)),lo=Math.min(...ser[s].slice(i-look,i)),px=ser[s][i];if(bm>0&&px>=hi)out[s]=1/Math.max(1,syms.length);else if(bm<0&&px<=lo)out[s]=-1/Math.max(1,syms.length);});
+        return out;
+      },cfg,'MTE · Breakout + Regime');
+    }
+    if(type==='VALUE_MOMENTUM_PROXY'){
+      const vl=p.valueLookback||756,ml=p.momentumLookback||252;
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(i<Math.max(vl,ml)+1)return {};
+        const ranked=syms.map(s=>({s,value:-(ser[s][i]/ser[s][i-vl]-1),mom:ser[s][i]/ser[s][i-ml]-1})).filter(x=>Number.isFinite(x.value)&&Number.isFinite(x.mom));
+        const vm=ranked.map(x=>({...x,score:.5*x.value+.5*x.mom})).sort((a,b)=>b.score-a.score),n=Math.max(1,Math.floor(vm.length*.25)),out={};vm.slice(0,n).forEach(x=>out[x.s]=1/(2*n));vm.slice(-n).forEach(x=>out[x.s]=-1/(2*n));return out;
+      },cfg,'MTE · Value + Momentum Proxy');
+    }
+    return null;
+  }
+
+  function addExpandedUI(){
+    if(document.getElementById('mteExpandedLab'))return;
+    const anchor=document.getElementById('optimisationResults')||document.getElementById('backtestResults')||document.body;
+    const box=document.createElement('div');box.id='mteExpandedLab';box.className='box';box.style.marginTop='15px';
+    const groups={
+      'MACRO / CROSS-ASSET':['TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CROSS_SECTIONAL_MOMENTUM','RELATIVE_STRENGTH_ROTATION','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','PAIRS_SPREAD','COINTEGRATION','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','TREND_VOLATILITY_MACRO','MOMENTUM_VOLATILITY','BREAKOUT_REGIME','VALUE_MOMENTUM_PROXY'],
+      'DATA-DEPENDENT / RESERVED':['CARRY','FUNDAMENTAL_VALUE']
+    };
+    box.innerHTML='<h3>MTE EXPANDED STRATEGY UNIVERSE</h3><div class="sub">This layer adds multi-asset, positively correlated, negatively correlated and low-correlation research to the existing technical Strategy Lab. Cross-asset tests use the committed historical cache; unavailable symbols are skipped rather than fabricated.</div><div id="mteStrategyChecks"></div><div class="row" style="margin-top:12px"><span>Research stage</span><select id="mteLabStage"><option value="discovery">STAGE 1 · DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></div><div class="row"><span>Universe</span><b id="mteUniverseStatus">Loading available cached assets…</b></div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="mteRunExpanded" class="primary">RUN EXPANDED MTE LAB</button><button id="mteSelectAll" class="secondary">SELECT ALL</button><button id="mteSelectCore" class="secondary">CORE MACRO</button></div><div class="sub" style="margin-top:10px">Carry and fundamental value are reserved until forward/yield/fundamental fields are added. They are visible so the architecture does not lose the strategy families, but they are not falsely backtested from close-only data.</div>';
+    const html=Object.entries(groups).map(([g,ks])=>'<div style="margin-top:12px"><b style="font-size:11px">'+g+'</b><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:6px">'+ks.map(k=>'<label style="display:flex;gap:7px;align-items:flex-start;font-size:11px"><input type="checkbox" class="mte-strategy-check" value="'+k+'" '+(k==='CARRY'||k==='FUNDAMENTAL_VALUE'?'disabled':'checked')+'><span><b>'+NEW[k].name+'</b><br><span class="sub">'+NEW[k].desc+'</span></span></label>').join('')+'</div></div>').join('');
+    box.querySelector('#mteStrategyChecks').innerHTML=html;
+    anchor.parentNode.insertBefore(box,anchor);
+    box.querySelector('#mteRunExpanded').onclick=()=>mteExpandedStrategyLab();
+    box.querySelector('#mteSelectAll').onclick=()=>box.querySelectorAll('.mte-strategy-check:not(:disabled)').forEach(x=>x.checked=true);
+    box.querySelector('#mteSelectCore').onclick=()=>{
+      const core=['TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','VALUE_MOMENTUM_PROXY'];
+      box.querySelectorAll('.mte-strategy-check').forEach(x=>x.checked=core.includes(x.value));
+    };
+  }
+
+  const COARSE={
+    TIME_SERIES_MOMENTUM:[{lookback:21},{lookback:63},{lookback:126},{lookback:252}],
+    CROSS_SECTIONAL_MOMENTUM:[{lookback:63,topPct:.2},{lookback:126,topPct:.25},{lookback:252,topPct:.25}],
+    RELATIVE_STRENGTH_ROTATION:[{lookback:63,topN:2},{lookback:126,topN:3},{lookback:252,topN:3}],
+    CORRELATION_CONFIRMATION:[{corrLookback:30,lookback:63},{corrLookback:60,lookback:126},{corrLookback:120,lookback:252}],
+    NEGATIVE_CORRELATION_DIVERGENCE:[{corrLookback:30,lookback:63},{corrLookback:60,lookback:126},{corrLookback:120,lookback:252}],
+    LOW_CORRELATION_TREND:[{lookback:63,corrMax:.25},{lookback:126,corrMax:.35},{lookback:252,corrMax:.45}],
+    CROSS_ASSET_MOMENTUM:[{short:21,medium:63,long:126},{short:21,medium:63,long:252},{short:63,medium:126,long:252}],
+    CORRELATION_REGIME:[{corrLookback:30,high:.60,low:.20},{corrLookback:60,high:.65,low:.25},{corrLookback:120,high:.70,low:.30}],
+    PAIRS_SPREAD:[{lookback:30,zEntry:1.5,zExit:.25},{lookback:60,zEntry:2,zExit:.5},{lookback:120,zEntry:2.5,zExit:.5}],
+    COINTEGRATION:[{lookback:60,zEntry:2,zExit:.5},{lookback:120,zEntry:2,zExit:.5},{lookback:252,zEntry:2.5,zExit:.75}],
+    RISK_ON_OFF:[{lookback:21},{lookback:63},{lookback:126}],
+    MACRO_REGIME_ROTATION:[{lookback:63,topN:1},{lookback:126,topN:2},{lookback:252,topN:2}],
+    VOL_TARGET_TREND:[{lookback:63,volLookback:20,targetVol:.10},{lookback:126,volLookback:20,targetVol:.10},{lookback:252,volLookback:40,targetVol:.10}],
+    TREND_VOLATILITY_MACRO:[{lookback:63,volLookback:20,volMax:.35},{lookback:126,volLookback:20,volMax:.45},{lookback:252,volLookback:40,volMax:.55}],
+    MOMENTUM_VOLATILITY:[{lookback:63,volLookback:20},{lookback:126,volLookback:20},{lookback:252,volLookback:40}],
+    BREAKOUT_REGIME:[{lookback:20,regimeLookback:63},{lookback:55,regimeLookback:126},{lookback:100,regimeLookback:252}],
+    VALUE_MOMENTUM_PROXY:[{valueLookback:504,momentumLookback:126},{valueLookback:756,momentumLookback:252},{valueLookback:1008,momentumLookback:252}]
+  };
+  const DEEP={
+    TIME_SERIES_MOMENTUM:[21,42,63,84,126,189,252].map(lookback=>({lookback})),
+    CROSS_SECTIONAL_MOMENTUM:[63,84,126,189,252].flatMap(lookback=>[.15,.2,.25,.33].map(topPct=>({lookback,topPct}))),
+    RELATIVE_STRENGTH_ROTATION:[63,84,126,189,252].flatMap(lookback=>[1,2,3,4].map(topN=>({lookback,topN}))),
+    CORRELATION_CONFIRMATION:[30,60,90,120,180].flatMap(corrLookback=>[42,63,126,252].map(lookback=>({corrLookback,lookback}))),
+    NEGATIVE_CORRELATION_DIVERGENCE:[30,60,90,120,180].flatMap(corrLookback=>[42,63,126,252].map(lookback=>({corrLookback,lookback}))),
+    LOW_CORRELATION_TREND:[63,84,126,189,252].flatMap(lookback=>[.2,.25,.3,.35,.4,.5].map(corrMax=>({lookback,corrMax}))),
+    CROSS_ASSET_MOMENTUM:[21,42,63].flatMap(short=>[63,84,126].flatMap(medium=>[126,189,252].filter(long=>long>medium).map(long=>({short,medium,long})))),
+    CORRELATION_REGIME:[30,60,90,120,180].flatMap(corrLookback=>[.55,.60,.65,.70,.75].flatMap(high=>[.15,.2,.25,.3,.35].map(low=>({corrLookback,high,low})))),
+    PAIRS_SPREAD:[30,45,60,90,120,180,252].flatMap(lookback=>[1.5,2,2.5,3].flatMap(zEntry=>[.25,.5,.75,1].map(zExit=>({lookback,zEntry,zExit})))),
+    COINTEGRATION:[60,90,120,180,252].flatMap(lookback=>[1.5,2,2.5,3].flatMap(zEntry=>[.25,.5,.75].map(zExit=>({lookback,zEntry,zExit})))),
+    RISK_ON_OFF:[21,42,63,84,126,252].map(lookback=>({lookback})),
+    MACRO_REGIME_ROTATION:[42,63,84,126,189,252].flatMap(lookback=>[1,2,3].map(topN=>({lookback,topN}))),
+    VOL_TARGET_TREND:[42,63,84,126,189,252].flatMap(lookback=>[20,40,60].map(volLookback=>({lookback,volLookback,targetVol:.08}))).concat([42,63,84,126,189,252].flatMap(lookback=>[20,40,60].map(volLookback=>({lookback,volLookback,targetVol:.12})))),
+    TREND_VOLATILITY_MACRO:[42,63,84,126,189,252].flatMap(lookback=>[20,40,60].flatMap(volLookback=>[.25,.35,.45,.55].map(volMax=>({lookback,volLookback,volMax})))),
+    MOMENTUM_VOLATILITY:[42,63,84,126,189,252].flatMap(lookback=>[20,40,60].map(volLookback=>({lookback,volLookback}))),
+    BREAKOUT_REGIME:[10,20,30,40,55,75,100,150,200].flatMap(lookback=>[42,63,84,126,189,252].map(regimeLookback=>({lookback,regimeLookback}))),
+    VALUE_MOMENTUM_PROXY:[504,756,1008].flatMap(valueLookback=>[126,189,252].map(momentumLookback=>({valueLookback,momentumLookback})))
+  };
+
+  function rankItems(items){
+    return items.slice().sort((a,b)=>{
+      const score=x=>((x.result.sharpe||0)*.35)+((x.result.profitFactor||0)*.25)+((x.result.cagr||x.result.totalReturn||0)/100*.25)-((x.result.maxDrawdown||0)/100*.15);
+      return score(b)-score(a);
+    });
+  }
+
+  async function robustness(items,ds,cfg,stagePanel){
+    const rows=[];
+    const top=rankItems(items).slice(0,Math.max(5,Number(document.getElementById('labTopN')?.value)||10));
+    let done=0;
+    updateLabProgress({robust:0});
+    for(const item of top){
+      const split=Math.floor(ds.dates.length*.7);
+      const oosDs={dates:ds.dates.slice(split),series:{},symbols:ds.symbols};
+      ds.symbols.forEach(s=>oosDs.series[s]=ds.series[s].slice(split));
+      let oos=null;
+      try{oos=expandedStrategy(oosDs,item.type,item.params,cfg);}catch(e){}
+      const neighbours=[];
+      const base=item.params;
+      Object.keys(base).forEach(k=>{
+        const v=Number(base[k]);if(!Number.isFinite(v)||v===0)return;
+        [.9,1.1].forEach(f=>{
+          const p={...base,[k]:Number.isInteger(v)?Math.max(1,Math.round(v*f)):v*f};
+          try{const rr=expandedStrategy(ds,item.type,p,cfg);if(rr)neighbours.push(rr);}catch(e){}
+        });
+      });
+      const stable=neighbours.length?neighbours.filter(r=>r.totalReturn>0).length/neighbours.length:0;
+      const wf=[];
+      for(let w=0;w<4;w++){
+        const a=Math.floor(ds.dates.length*(w*.15)),b=Math.floor(ds.dates.length*(.35+w*.15));
+        if(b-a<90)continue;
+        const wds={dates:ds.dates.slice(a,b),series:{},symbols:ds.symbols};ds.symbols.forEach(s=>wds.series[s]=ds.series[s].slice(a,b));
+        try{const wr=expandedStrategy(wds,item.type,item.params,cfg);if(wr)wf.push(wr.totalReturn>0);}catch(e){}
+      }
+      const wfPos=wf.filter(Boolean).length;
+      rows.push({item,oos,stable,wfPos,wfTotal:wf.length});
+      done++;updateLabProgress({robust:done/top.length*100});await sleep(0);
+    }
+    updateLabProgress({robust:100});
+    rows.sort((a,b)=>(b.stable-a.stable)||(b.wfPos-b.wfPos)||((b.oos?.sharpe||0)-(a.oos?.sharpe||0)));
+    return rows;
+  }
+
+  async function mteExpandedStrategyLab(){
+    addExpandedUI();
+    const asset=document.getElementById('btAsset')?.value||'QQQ',cfg=getBTConfig(),stage=document.getElementById('mteLabStage')?.value||'discovery';
+    const selected=Array.from(document.querySelectorAll('.mte-strategy-check:checked')).map(x=>x.value);
+    const panel=document.getElementById('optimisationResults')||document.getElementById('backtestResults');
+    const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
+    if(!selected.length){alert('Select at least one expanded strategy.');return;}
+    window.__mteLabProgress={discovery:0,deep:0,robust:0};
+    updateLabProgress({discovery:0,deep:0,robust:0});
+    if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading multi-asset historical cache…</div>';
+    if(status)status.textContent='MTE LAB RUNNING';
+    try{
+      const ds=await loadRawUniverse(asset,cfg);
+      document.getElementById('mteUniverseStatus').textContent=ds.symbols.length+' cached assets available · '+ds.dates[0]+' → '+ds.dates[ds.dates.length-1];
+      const exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
+      const all=[];
+      const grids=stage==='discovery'?COARSE:DEEP;
+      const total=selected.reduce((n,t)=>n+(grids[t]?.length||0),0);
+      let done=0;
+      for(const type of selected){
+        for(const p of (grids[type]||[])){
+          let r=null;
+          try{r=expandedStrategy(ds,type,p,cfg);}catch(e){}
+          if(r&&r.trades>=1)all.push({type,params:p,result:r});
+          done++;updateLabProgress({discovery:stage==='discovery'?done/Math.max(1,total)*100:100,deep:stage!=='discovery'?done/Math.max(1,total)*100:0});
+          if(done%5===0){if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / universe</span><b>'+asset+' · '+ds.symbols.length+' assets</b></div><div class="row"><span>Scenarios processed</span><b>'+done.toLocaleString()+' / '+total.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+all.length.toLocaleString()+'</b></div><div class="sub">Running '+NEW[type].name+'…</div>';await sleep(0);}
+        }
+      }
+      if(stage==='discovery'){
+        updateLabProgress({discovery:100});
+        const ranked=rankItems(all);
+        const display=ranked.slice(0,Math.max(10,Number(document.getElementById('labTopN')?.value)||10));
+        const rows=display.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+NEW[x.type].name+'</td><td>'+Object.entries(x.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.cagr.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
+        if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · STAGE 1 · DISCOVERY</h3><div class="row"><span>Asset / universe</span><b>'+asset+' · '+ds.symbols.length+' assets</b></div><div class="row"><span>Scenarios processed</span><b>'+done.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+all.length.toLocaleString()+'</b></div><div class="sub">Ranked by a composite of Sharpe, profit factor, CAGR and drawdown. This is discovery, not a trade recommendation.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>TRADES</th><th>RETURN</th><th>CAGR</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN RATE</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      } else if(stage==='deep'){
+        updateLabProgress({discovery:100,deep:100});
+        const ranked=rankItems(all),display=ranked.slice(0,Math.max(10,Number(document.getElementById('labTopN')?.value)||10));
+        const rows=display.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+NEW[x.type].name+'</td><td>'+Object.entries(x.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.cagr.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
+        if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · STAGE 2 · DEEP OPTIMISATION</h3><div class="row"><span>Asset / universe</span><b>'+asset+' · '+ds.symbols.length+' assets</b></div><div class="row"><span>Scenarios processed</span><b>'+done.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+all.length.toLocaleString()+'</b></div><div class="sub">Deep grids test parameter regions rather than a single historical peak.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>TRADES</th><th>RETURN</th><th>CAGR</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN RATE</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      } else {
+        const rows=await robustness(all,ds,cfg,panel);
+        const body=rows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+NEW[x.item.type].name+'</td><td>'+Object.entries(x.item.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.item.result.totalReturn.toFixed(2)+'%</td><td>'+(x.oos?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.oos?.profitFactor||0).toFixed(2)+'</td><td>'+Math.round(x.stable*100)+'%</td><td>'+x.wfPos+'/'+x.wfTotal+'</td><td><b>'+(x.stable>=.55&&x.wfPos>=Math.max(1,Math.ceil(x.wfTotal*.5))&&x.oos?.profitFactor>=1.05?'ROBUST CANDIDATE':'REQUIRES VALIDATION')+'</b></td></tr>').join('');
+        if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · STAGE 3 · ROBUSTNESS</h3><div class="row"><span>Validation candidates</span><b>'+rows.length+'</b></div><div class="sub">Validation includes 70/30 OOS, parameter neighbours, four walk-forward windows and multi-asset behaviour. Carry/fundamental families remain data-gated.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>IS RETURN</th><th>OOS RETURN</th><th>OOS PF</th><th>STABILITY</th><th>WF POSITIVE</th><th>STATUS</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+      }
+      if(explain)explain.innerHTML='<b>MTE EXPANDED LAB COMPLETE</b><br>'+ds.symbols.length+' usable cached assets. Positive, negative and low-correlation relationships were explicitly tested. Carry and fundamental value are data-gated until the required fields are available.';
+      if(status)status.textContent='MTE LAB COMPLETE';
+    }catch(e){
+      if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · ERROR</h3><div class="sub">'+String(e.message||e)+'</div>';
+      if(status)status.textContent='MTE LAB ERROR';
+    }
+  }
+
+  window.mteExpandedStrategyLab=mteExpandedStrategyLab;
+  window.runStrategyLab=mteExpandedStrategyLab;
+  window.optimiseBacktest=mteExpandedStrategyLab;
+
+  function init(){
+    addExpandedUI();
+    const s=document.getElementById('mteUniverseStatus');
+    if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
