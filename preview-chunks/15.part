@@ -433,7 +433,7 @@
     if(!selected.length){alert('Select at least one expanded strategy.');return;}
     window.__mteLabProgress={discovery:0,deep:0,robust:0};
     updateLabProgress({discovery:0,deep:0,robust:0});
-    if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading multi-asset historical cache…</div>';mteEnsureCollapsible(panel);
+    if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading multi-asset historical cache…</div>';
     if(status)status.textContent='MTE LAB RUNNING';
     try{
       const ds=await loadRawUniverse(asset,cfg);
@@ -449,7 +449,7 @@
           try{r=expandedStrategy(ds,type,p,cfg);}catch(e){}
           if(r&&r.trades>=1)all.push({type,params:p,result:r});
           done++;updateLabProgress({discovery:stage==='discovery'?done/Math.max(1,total)*100:100,deep:stage!=='discovery'?done/Math.max(1,total)*100:0});
-          if(done%5===0){if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / universe</span><b>'+asset+' · '+ds.symbols.length+' assets</b></div><div class="row"><span>Scenarios processed</span><b>'+done.toLocaleString()+' / '+total.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+all.length.toLocaleString()+'</b></div><div class="sub">Running '+NEW[type].name+'…</div>';mteEnsureCollapsible(panel);await sleep(0);}
+          if(done%5===0){if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / universe</span><b>'+asset+' · '+ds.symbols.length+' assets</b></div><div class="row"><span>Scenarios processed</span><b>'+done.toLocaleString()+' / '+total.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+all.length.toLocaleString()+'</b></div><div class="sub">Running '+NEW[type].name+'…</div>';await sleep(0);}
         }
       }
       if(stage==='discovery'){
