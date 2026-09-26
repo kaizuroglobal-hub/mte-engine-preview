@@ -209,7 +209,8 @@ function initLabProgress(context){
 }
 function labProgressHTML(activeStage){
  const p=window.__mteLabProgress||{discovery:0,deep:0,robust:0};
- const active=activeStage||window.__mteActiveLabStage||'discovery';
+ const requested=activeStage||window.__mteActiveLabStage||'discovery';
+ const active=requested==='robust'&&Number(p.deep||0)<100?'deep':requested;
  const rows=[
   ['discovery','STAGE 1 · DISCOVERY'],
   ['deep','STAGE 2 · DEEP OPTIMISATION'],
@@ -306,7 +307,7 @@ async function runStrategyDiscovery(){
      deepDone++;
      updateLabProgress({deep:deepTotal?deepDone/deepTotal*100:100});
      if(scenarioCount%20===0){
-      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';mteEnsureCollapsible(panel);
+      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 2 · DEEP OPTIMISATION</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Stage 2 is required before Stage 3 validation. Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';mteEnsureCollapsible(panel);
       await new Promise(resolve=>setTimeout(resolve,0));
      }
     }
@@ -314,6 +315,9 @@ async function runStrategyDiscovery(){
    updateLabProgress({deep:100});
   }
   if(stage==='robust'){
+   window.__mteActiveLabStage='robust';
+   updateLabProgress({});
+   panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation complete. Starting OOS robustness and validation…</div>';mteEnsureCollapsible(panel);
    const base=labRank(finalResults.length?finalResults:discoveryBest,f.rankBy).slice(0,Math.max(3,f.topN));
    return await runStrategyRobustness(asset,closes,dates,cfg,f,base,panel,status,explain);
   }
