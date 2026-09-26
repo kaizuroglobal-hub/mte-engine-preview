@@ -218,6 +218,7 @@ function updateLabProgress(patch){
 }
 async function runStrategyDiscovery(){
  const asset=document.getElementById('btAsset')?.value,cfg=getBTConfig(),stage=document.getElementById('labStage')?.value||'discovery';
+ window.__mteActiveLabStage=stage;
  const f={minTrades:Math.max(0,Number(document.getElementById('optMinTrades')?.value)||0),minReturn:Number(document.getElementById('optMinReturn')?.value)||0,minPF:Math.max(0,Number(document.getElementById('optMinPF')?.value)||0),minSharpe:Number(document.getElementById('optMinSharpe')?.value)||0,maxDD:Math.max(0,Number(document.getElementById('optMaxDD')?.value)||100),rankBy:document.getElementById('optRankBy')?.value||'totalReturn',topN:Math.max(1,Number(document.getElementById('labTopN')?.value)||10)};
  const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
