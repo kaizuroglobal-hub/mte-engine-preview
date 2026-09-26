@@ -211,7 +211,7 @@ async function optimiseBacktest(){
    '<div class="row"><span>Scenarios tested / passed</span><b>'+opt.tested.toLocaleString()+' / '+opt.passingCount.toLocaleString()+'</b></div>'+
    '<div class="row"><span>Ranking</span><b>'+filters.rankBy.replace(/([A-Z])/g,' $1').toUpperCase()+'</b></div>'+
    '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>FAST</th><th>SLOW</th><th>TIMEFRAME</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>P&amp;L</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th><th>AVG / TRADE</th></tr></thead><tbody>'+top+'</tbody></table></div>'+
-   '<div class="sub" style="margin-top:10px">Showing the top Math.min(100,filters.maxScenarios) passing scenarios. The search itself was exhaustive across the configured parameter ranges. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
+   '<div class="sub" style="margin-top:10px">Showing the top 100 passing scenarios. The search itself was exhaustive across the configured parameter ranges. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
   const best=opt.scenarios[0];
   explain.innerHTML='<b>OPTIMISATION COMPLETE</b><br>Top scenario by <b>'+filters.rankBy+'</b>: FAST '+best.fast+' / SLOW '+best.slow+' · '+best.timeframe+' · '+best.exit+'.';
   status.textContent='OPTIMISED';
