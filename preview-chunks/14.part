@@ -203,17 +203,15 @@ async function optimiseBacktest(){
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for optimisation.');
   if(!filters.timeframes.length||!filters.exits.length)throw new Error('Select at least one timeframe and one exit model.');
-  const totalPossible=Math.ceil((filters.fastMax-filters.fastMin+1)/filters.fastStep)*Math.ceil((filters.slowMax-filters.slowMin+1)/filters.slowStep)*filters.timeframes.length*filters.exits.length;
-  if(totalPossible>filters.maxScenarios)explain.innerHTML='<b>OPTIMISATION LIMITED</b><br>'+totalPossible.toLocaleString()+' scenarios are possible; the MAX SCENARIOS filter is '+filters.maxScenarios.toLocaleString()+'.';
-  const opt=optimiseTechnicalMatrix(closes,dates,cfg,filters);
+  const opt=await optimiseTechnicalMatrix(closes,dates,cfg,filters);
   if(!opt.scenarios.length)throw new Error('No scenarios passed the selected performance filters.');
-  const top=opt.scenarios.slice(0,100).map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+s.fast+'</td><td>'+s.slow+'</td><td>'+s.timeframe.split(' context')[0]+'</td><td>'+s.exit+'</td><td>'+s.result.trades+'</td><td>'+(s.result.totalReturn>=0?'+':'')+s.result.totalReturn.toFixed(2)+'%</td><td>$'+s.result.pnl.toFixed(2)+'</td><td>'+s.result.profitFactor.toFixed(2)+'</td><td>'+s.result.sharpe.toFixed(2)+'</td><td>'+s.result.maxDrawdown.toFixed(2)+'%</td><td>'+s.result.winRate.toFixed(1)+'%</td><td>'+s.result.averageReturn.toFixed(2)+'%</td></tr>').join('');
+  const top=opt.scenarios.slice(0,Math.min(100,filters.maxScenarios)).map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+s.fast+'</td><td>'+s.slow+'</td><td>'+s.timeframe.split(' context')[0]+'</td><td>'+s.exit+'</td><td>'+s.result.trades+'</td><td>'+(s.result.totalReturn>=0?'+':'')+s.result.totalReturn.toFixed(2)+'%</td><td>$'+s.result.pnl.toFixed(2)+'</td><td>'+s.result.profitFactor.toFixed(2)+'</td><td>'+s.result.sharpe.toFixed(2)+'</td><td>'+s.result.maxDrawdown.toFixed(2)+'%</td><td>'+s.result.winRate.toFixed(1)+'%</td><td>'+s.result.averageReturn.toFixed(2)+'%</td></tr>').join('');
   panel.innerHTML='<h3>TECHNICAL 01 · OPTIMISATION MATRIX</h3>'+
    '<div class="row"><span>Asset / test window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div>'+
-   '<div class="row"><span>Scenarios tested / passed</span><b>'+totalPossible.toLocaleString()+' / '+opt.scenarios.length.toLocaleString()+'</b></div>'+
+   '<div class="row"><span>Scenarios tested / passed</span><b>'+opt.tested.toLocaleString()+' / '+opt.passingCount.toLocaleString()+'</b></div>'+
    '<div class="row"><span>Ranking</span><b>'+filters.rankBy.replace(/([A-Z])/g,' $1').toUpperCase()+'</b></div>'+
    '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>FAST</th><th>SLOW</th><th>TIMEFRAME</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>P&amp;L</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th><th>AVG / TRADE</th></tr></thead><tbody>'+top+'</tbody></table></div>'+
-   '<div class="sub" style="margin-top:10px">Showing the top 100 passing scenarios. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
+   '<div class="sub" style="margin-top:10px">Showing the top Math.min(100,filters.maxScenarios) passing scenarios. The search itself was exhaustive across the configured parameter ranges. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
   const best=opt.scenarios[0];
   explain.innerHTML='<b>OPTIMISATION COMPLETE</b><br>Top scenario by <b>'+filters.rankBy+'</b>: FAST '+best.fast+' / SLOW '+best.slow+' · '+best.timeframe+' · '+best.exit+'.';
   status.textContent='OPTIMISED';
