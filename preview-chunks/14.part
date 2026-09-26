@@ -80,21 +80,29 @@ function labRSI(a,p){if(a.length<=p)return 50;let g=0,l=0;for(let i=a.length-p;i
 function labATR(a,p){if(a.length<=p)return 0;let s=0;for(let i=a.length-p+1;i<a.length;i++)s+=Math.abs(a[i]-a[i-1]);return s/(p-1)}
 function labStd(a){if(a.length<2)return 0;const m=labMean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/a.length)}
 function labSignal(closes,i,type,p){
- const x=closes.slice(0,i);
+ const x=closes.slice(0,i),px=x[x.length-1];
+ if(!x.length)return 0;
  if(type==='MA_CROSSOVER'){const f=labMean(x.slice(-p.fast)),s=labMean(x.slice(-p.slow));return f>s?1:-1}
- if(type==='EMA_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>0?1:f<s&&m<0?-1:0}
+ if(type==='EMA_MOMENTUM'){const w=x.slice(-Math.max(p.slow,p.momentum,50)),f=labEMA(w,p.fast),s=labEMA(w,p.slow),m=x.length>p.momentum?px/x[x.length-1-p.momentum]-1:0;return f>s&&m>0?1:f<s&&m<0?-1:0}
  if(type==='RSI_MEAN_REVERSION'){const r=labRSI(x,p.period);if(r<=p.entry)return 1;if(r>=100-p.entry)return -1;return 0}
  if(type==='RSI_MOMENTUM'){const r=labRSI(x,p.period);return r>=p.threshold?1:r<=100-p.threshold?-1:0}
- if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+20,100)),mh=[];for(let j=p.slow;j<base.length;j++){const w=base.slice(0,j+1);mh.push(labEMA(w,p.fast)-labEMA(w,p.slow))}const m=mh[mh.length-1],sig=labEMA(mh,p.signal);return m>sig?1:m<sig?-1:0}
- if(type==='BREAKOUT'){const hi=Math.max(...x.slice(-p.lookback)),lo=Math.min(...x.slice(-p.lookback)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
- if(type==='DONCHIAN'){const hi=Math.max(...x.slice(-p.entry)),lo=Math.min(...x.slice(-p.entry)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
- if(type==='BOLLINGER_REVERSION'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z<=-p.z?1:z>=p.z?-1:0}
- if(type==='BOLLINGER_BREAKOUT'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z>=p.z?1:z<=-p.z?-1:0}
- if(type==='ATR_BREAKOUT'){const atr=labATR(x,p.lookback),move=x[x.length-1]-x[x.length-2];return atr&&move>atr*p.atrMult?1:atr&&move<-atr*p.atrMult?-1:0}
- if(type==='MOMENTUM'){const m=x.length>p.lookback?x[x.length-1]/x[x.length-1-p.lookback]-1:0;return m>p.threshold?1:m<-p.threshold?-1:0}
- if(type==='TREND_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,100)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>p.threshold?1:f<s&&m<-p.threshold?-1:0}
- if(type==='TREND_VOLATILITY'){const f=labEMA(x.slice(-Math.max(p.slow,p.atrPeriod,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.atrPeriod,100)),p.slow),atr=labATR(x,p.atrPeriod),base=labMean(x.slice(-p.atrPeriod));if(!atr||!base)return 0;const ratio=atr/base;return ratio>=p.atrMult?(f>s?1:f<s?-1:0):0}
- if(type==='MULTI_FACTOR'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,p.rsi,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,p.rsi,100)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0,r=labRSI(x,p.rsi);return f>s&&m>0&&r>=50?1:f<s&&m<0&&r<50?-1:0}
+ if(type==='MACD'){
+  const w=x.slice(-Math.max(p.slow+p.signal+40,120)),kF=2/(p.fast+1),kS=2/(p.slow+1),mac=[];
+  let ef=w[0],es=w[0];
+  for(let j=1;j<w.length;j++){ef=w[j]*kF+ef*(1-kF);es=w[j]*kS+es*(1-kS);mac.push(ef-es)}
+  if(mac.length<p.signal)return 0;
+  const kSig=2/(p.signal+1);let sig=mac[0];for(let j=1;j<mac.length;j++)sig=mac[j]*kSig+sig*(1-kSig);
+  const m=mac[mac.length-1];return m>sig?1:m<sig?-1:0;
+ }
+ if(type==='BREAKOUT'){const w=x.slice(-p.lookback-1,-1),hi=Math.max(...w),lo=Math.min(...w);return px>hi?1:px<lo?-1:0}
+ if(type==='DONCHIAN'){const w=x.slice(-p.entry-1,-1),hi=Math.max(...w),lo=Math.min(...w);return px>hi?1:px<lo?-1:0}
+ if(type==='BOLLINGER_REVERSION'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(px-m)/sd:0;return z<=-p.z?1:z>=p.z?-1:0}
+ if(type==='BOLLINGER_BREAKOUT'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(px-m)/sd:0;return z>=p.z?1:z<=-p.z?-1:0}
+ if(type==='ATR_BREAKOUT'){const atr=labATR(x,p.lookback),move=px-x[x.length-2];return atr&&move>atr*p.atrMult?1:atr&&move<-atr*p.atrMult?-1:0}
+ if(type==='MOMENTUM'){const m=x.length>p.lookback?px/x[x.length-1-p.lookback]-1:0;return m>p.threshold?1:m<-p.threshold?-1:0}
+ if(type==='TREND_MOMENTUM'){const w=x.slice(-Math.max(p.slow,p.momentum,100)),f=labEMA(w,p.fast),s=labEMA(w,p.slow),m=x.length>p.momentum?px/x[x.length-1-p.momentum]-1:0;return f>s&&m>p.threshold?1:f<s&&m<-p.threshold?-1:0}
+ if(type==='TREND_VOLATILITY'){const w=x.slice(-Math.max(p.slow,p.atrPeriod,100)),f=labEMA(w,p.fast),s=labEMA(w,p.slow),atr=labATR(x,p.atrPeriod),base=labMean(x.slice(-p.atrPeriod));if(!atr||!base)return 0;return atr/base>=p.atrMult?(f>s?1:f<s?-1:0):0}
+ if(type==='MULTI_FACTOR'){const w=x.slice(-Math.max(p.slow,p.momentum,p.rsi,100)),f=labEMA(w,p.fast),s=labEMA(w,p.slow),m=x.length>p.momentum?px/x[x.length-1-p.momentum]-1:0,r=labRSI(x,p.rsi);return f>s&&m>0&&r>=50?1:f<s&&m<0&&r<50?-1:0}
  return 0;
 }
 function labExit(closes,entryIndex,direction,model,p){
@@ -169,21 +177,32 @@ function labGrid(type,stage){
 function labFilter(r,f){return r&&r.trades>=f.minTrades&&r.totalReturn>=f.minReturn&&r.profitFactor>=f.minPF&&r.sharpe>=f.minSharpe&&r.maxDrawdown<=f.maxDD}
 function labRank(arr,metric){return arr.sort((a,b)=>{const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];return metric==='maxDrawdown'?av-bv:bv-av})}
 async function runStrategyDiscovery(){
- const asset=document.getElementById('btAsset').value,cfg=getBTConfig(),stage=document.getElementById('labStage').value;
- const f={minTrades:Math.max(0,Number(document.getElementById('optMinTrades').value)||0),minReturn:Number(document.getElementById('optMinReturn').value)||0,minPF:Number(document.getElementById('optMinPF').value)||0,minSharpe:Number(document.getElementById('optMinSharpe').value)||0,maxDD:Number(document.getElementById('optMaxDD').value)||100,rankBy:document.getElementById('optRankBy').value,topN:Math.max(1,Number(document.getElementById('labTopN').value)||10)};
+ const asset=document.getElementById('btAsset')?.value,cfg=getBTConfig(),stage=document.getElementById('labStage')?.value||'discovery';
+ const f={minTrades:Math.max(0,Number(document.getElementById('optMinTrades')?.value)||0),minReturn:Number(document.getElementById('optMinReturn')?.value)||0,minPF:Math.max(0,Number(document.getElementById('optMinPF')?.value)||0),minSharpe:Number(document.getElementById('optMinSharpe')?.value)||0,maxDD:Math.max(0,Number(document.getElementById('optMaxDD')?.value)||100),rankBy:document.getElementById('optRankBy')?.value||'totalReturn',topN:Math.max(1,Number(document.getElementById('labTopN')?.value)||10)};
  const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
- const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading committed historical cache for '+asset+'…</div>';
+ const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
+ status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+' strategy discovery…</div>';
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
-  const candidates=[];
+  if(!families.length)throw new Error('Select at least one strategy family.');
+  if(!exits.length)throw new Error('Select at least one exit model.');
+  const candidates=[],discoveryBest=[];
+  let scenarioCount=0;
+  const runOne=async(type,p,exit)=>{
+   try{const r=labScenario(closes,dates,type,p,exit,cfg);if(r&&labFilter(r,f)){candidates.push({result:r});return true}}catch(err){console.warn('Strategy Lab scenario skipped',type,p,exit,err)}return false;
+  };
   const usableFamilies=families.filter(type=>STRATEGY_LIBRARY[type]&&type!=='VWAP_REVERSION'&&type!=='VOLUME_BREAKOUT');
-  const discoveryBest=[];
   for(const type of usableFamilies){
-   const grids=labGrid(type,'discovery');
-   for(const p of grids)for(const exit of exits){const r=labScenario(closes,dates,type,p,exit,cfg);if(labFilter(r,f))candidates.push({result:r})}
-   const familyRuns=candidates.filter(x=>x.result.type===type);
+   const grids=labGrid(type,stage==='discovery'?'discovery':'discovery');
+   const familyRuns=[];
+   for(const p of grids)for(const exit of exits){
+    scenarioCount++;
+    const ok=await runOne(type,p,exit);
+    if(ok)familyRuns.push(candidates[candidates.length-1]);
+    if(scenarioCount%20===0){panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';await new Promise(resolve=>setTimeout(resolve,0))}
+   }
    if(familyRuns.length){labRank(familyRuns,f.rankBy);discoveryBest.push(familyRuns[0])}
    await new Promise(resolve=>setTimeout(resolve,0));
   }
@@ -194,19 +213,27 @@ async function runStrategyDiscovery(){
    finalCandidates=[];
    for(const type of selectedTypes){
     const grids=labGrid(type,'deep');
-    for(const p of grids)for(const exit of exits){const r=labScenario(closes,dates,type,p,exit,cfg);if(labFilter(r,f))finalCandidates.push({result:r})}
-    await new Promise(resolve=>setTimeout(resolve,0));
+    for(const p of grids)for(const exit of exits){
+     scenarioCount++;
+     const ok=await runOne(type,p,exit);
+     if(ok)finalCandidates.push(candidates[candidates.length-1]);
+     if(scenarioCount%20===0){panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';await new Promise(resolve=>setTimeout(resolve,0))}
+    }
    }
   }
-  labRank(finalCandidates,f.rankBy);
-  const top=finalCandidates.slice(0,stage==='robust'?Math.max(f.topN,10):f.topN);
-  if(stage==='robust')return runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain);
-  const displayTop=stage==='discovery'?discoveryBest.slice(0,f.topN):top;
+  if(stage==='robust'){
+   labRank(finalCandidates,f.rankBy);
+   const top=finalCandidates.slice(0,Math.max(f.topN,10));
+   return await runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain);
+  }
+  labRank(stage==='discovery'?discoveryBest:finalCandidates,f.rankBy);
+  const displayTop=(stage==='discovery'?discoveryBest:finalCandidates).slice(0,f.topN);
   const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE '+(stage==='discovery'?'1 · DISCOVERY':'2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Discovery scenarios passed</span><b>'+candidates.length.toLocaleString()+'</b></div><div class="row"><span>Deep scenarios passed</span><b>'+finalCandidates.length.toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">'+(stage==='discovery'?'Stage 1 compares the best passing scenario from each selected strategy family. Stage 2 uses those discovery results to select strategy families for a deeper parameter search.':'Stage 2 deeply searches the parameter space of the strongest Stage 1 strategy families.')+' No standard RUN BACKTEST logic was changed.</div>';
-  if(top[0]){const b=top[0].result;explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+b.totalReturn.toFixed(2)+'% return.'}
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Passing scenarios</span><b>'+((stage==='discovery'?candidates:finalCandidates).length).toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Stage '+(stage==='discovery'?'1 compares strategy families using the coarse discovery grid. Stage 2 deep-searches the strongest families.':'2 searches the deeper parameter grids selected from Stage 1.')+' The standard RUN BACKTEST engine was not modified.</div>';
+  if(displayTop[0]){const b=displayTop[0].result;explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+b.totalReturn.toFixed(2)+'% return.'}
+  else explain.textContent='STRATEGY LAB COMPLETE · No scenarios passed the current filters.';
   status.textContent='LAB COMPLETE';
- }catch(e){panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+e.message+'</div>';explain.textContent='STRATEGY LAB FAILED · '+e.message;status.textContent='ERROR'}
+ }catch(e){console.error('Strategy Lab failed',e);panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+(e?.message||String(e))+'</div>';explain.textContent='STRATEGY LAB FAILED · '+(e?.message||String(e));status.textContent='ERROR'}
 }
 async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain){
  const rows=[];
