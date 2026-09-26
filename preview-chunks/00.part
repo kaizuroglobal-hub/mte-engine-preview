@@ -193,12 +193,15 @@ function setStrategyLabPath(path){
  const stage=document.getElementById('strategyLabStage')?.value||document.getElementById('labStage')?.value||'discovery';
  setStrategyLabStage(stage,false);
 }function setStrategyLabStage(stage,scroll){
- const s=['discovery','deep','robust'].includes(stage)?stage:'discovery';
+ const requested=['discovery','deep','robust'].includes(stage)?stage:'discovery';
+ const progress=window.__mteLabProgress||{discovery:0,deep:0,robust:0};
+ let s=requested;
+ if(s==='deep' && Number(progress.discovery||0)<100)s='discovery';
+ if(s==='robust' && Number(progress.deep||0)<100)s=Number(progress.discovery||0)>=100?'deep':'discovery';
  window.__strategyLabStage=s;
  const technical=document.getElementById('labStage'),expanded=document.getElementById('mteLabStage');
  if(technical)technical.value=s;
  if(expanded)expanded.value=s;
- const labels={discovery:['1 · DISCOVER','Find strategy families'],deep:['2 · OPTIMISE','Deep-search parameters'],robust:['3 · VALIDATE','Test OOS robustness']};
  document.querySelectorAll('[data-lab-stage]').forEach(b=>{
   const active=b.getAttribute('data-lab-stage')===s;
   b.style.background=active?'#eef2f6':'#fff';
