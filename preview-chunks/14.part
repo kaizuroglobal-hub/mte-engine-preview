@@ -125,7 +125,7 @@ function labScenario(closes,dates,type,p,exitModel,cfg){
   const sig=labSignal(closes,i,type,p);
   if(side===0&&sig!==0){side=sig;entryIndex=i;entryPrice=closes[i];continue}
   if(side!==0&&(sig===-side||(type==='RSI_MEAN_REVERSION'&&sig===0))){
-   const ex=labExit(closes,entryIndex,exitModel,p),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px),ret=gross-btCostPct(cfg);
+   const ex=labExit(closes,entryIndex,side,exitModel,p),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px),ret=gross-btCostPct(cfg);
    trades.push({direction:side===1?'LONG':'SHORT',ret,bars:ex.idx-entryIndex,reason:ex.reason,entryDate:dates[entryIndex],exitDate:dates[ex.idx],entryPrice,exitPrice:ex.px});
    side=0;entryIndex=-1;
    if(sig!==0){side=sig;entryIndex=i;entryPrice=closes[i]}
