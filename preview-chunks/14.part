@@ -186,12 +186,27 @@ function labGrid(type,stage){
 }
 function labFilter(r,f){return r&&r.trades>=f.minTrades&&r.totalReturn>=f.minReturn&&r.profitFactor>=f.minPF&&r.sharpe>=f.minSharpe&&r.maxDrawdown<=f.maxDD}
 function labRank(arr,metric){return arr.sort((a,b)=>{const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];return metric==='maxDrawdown'?av-bv:bv-av})}
+function initLabProgress(context){
+ const key=String(context||'default');
+ if(window.__mteLabProgressContext!==key||!window.__mteLabProgress){
+  window.__mteLabProgressContext=key;
+  window.__mteLabProgress={discovery:0,deep:0,robust:0};
+ }
+ return window.__mteLabProgress;
+}
 function labProgressHTML(activeStage){
  const p=window.__mteLabProgress||{discovery:0,deep:0,robust:0};
- const stage=activeStage||window.__mteActiveLabStage||'discovery';
- const map={discovery:['STAGE 1 · DISCOVERY','discovery'],deep:['STAGE 2 · DEEP OPTIMISATION','deep'],robust:['STAGE 3 · ROBUSTNESS','robust']};
- const row=map[stage]||map.discovery, value=Number(p[row[1]]||0);
- return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS · '+row[0]+'</h3><div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+row[0]+' PROGRESS</span><span>'+Math.round(value)+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,value))+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div></div>';
+ const active=activeStage||window.__mteActiveLabStage||'discovery';
+ const rows=[
+  ['discovery','STAGE 1 · DISCOVERY'],
+  ['deep','STAGE 2 · DEEP OPTIMISATION'],
+  ['robust','STAGE 3 · ROBUSTNESS']
+ ];
+ return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS</h3>'+rows.map(([key,label])=>{
+  const value=Math.max(0,Math.min(100,Number(p[key]||0)));
+  const state=key===active?' · ACTIVE':value>=100?' · COMPLETE':' · PENDING';
+  return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+label+state+'</span><span>'+Math.round(value)+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+value+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div>';
+ }).join('')+'</div>';
 }
 function mteEnsureCollapsible(el){
  if(!el)return;
@@ -223,7 +238,7 @@ async function runStrategyDiscovery(){
  const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
- window.__mteLabProgress={discovery:0,deep:0,robust:0};
+ initLabProgress('technical|'+asset);
  status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';mteEnsureCollapsible(panel);
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
