@@ -1,0 +1,358 @@
+<script>
+(function(){
+  'use strict';
+
+  /* MTE OPPORTUNITY ENGINE v1
+     Research-first layer:
+     EVENT -> EXPECTED TRANSMISSION -> ACTUAL CONFIRMATION -> TREND -> POSITION
+     Designed to graduate into the Python/GPU research service and broker adapters.
+  */
+
+  const MTE_OE = {
+    version:'1.0',
+    capital:10000,
+    maxConcurrent:5,
+    maxExposure:50000,
+    horizons:[
+      {id:'1H',label:'1 hour',bars:1},
+      {id:'4H',label:'4 hours',bars:4},
+      {id:'24H',label:'24 hours',bars:24},
+      {id:'3D',label:'3 trading days',bars:3},
+      {id:'10D',label:'10 trading days',bars:10},
+      {id:'30D',label:'30 trading days',bars:30},
+      {id:'90D',label:'90 trading days',bars:90},
+      {id:'6M',label:'6 months',bars:126},
+      {id:'12M',label:'12 months',bars:252}
+    ],
+    eventTypes:[
+      ['POLICY','Government / policy action'],
+      ['GEOPOLITICAL','War / conflict / sanctions / diplomatic shock'],
+      ['CENTRAL_BANK','Central-bank communication or decision'],
+      ['MACRO_DATA','Inflation / employment / GDP / economic data'],
+      ['COMMODITY','Oil / gas / metals / supply shock'],
+      ['CRYPTO','Crypto-specific catalyst or market shock'],
+      ['CORPORATE','Company-specific event'],
+      ['MARKET_STRUCTURE','Liquidity / positioning / volatility shock'],
+      ['OTHER','Other material event']
+    ],
+    channels:[
+      ['RATES','Rates / discount-rate transmission'],
+      ['RISK','Global risk appetite'],
+      ['INFLATION','Inflation expectations'],
+      ['GROWTH','Growth / earnings expectations'],
+      ['COMMODITY','Commodity supply / demand'],
+      ['FX','Currency transmission'],
+      ['LIQUIDITY','Liquidity / funding conditions'],
+      ['TRADE','Trade / tariff transmission'],
+      ['CRYPTO_LIQ','Crypto liquidity / leverage'],
+      ['FLIGHT_TO_SAFETY','Safe-haven demand']
+    ]
+  };
+
+  function esc(x){
+    return String(x==null?'':x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function mean(a){return a&&a.length?a.reduce((s,x)=>s+x,0)/a.length:0;}
+  function sd(a){if(!a||a.length<2)return 0;const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)*(x-m))));}
+  function pct(a,b){return b?((a/b)-1)*100:0;}
+  function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+  function priceReturns(p){return p.map((x,i)=>i?x/p[i-1]-1:0);}
+  function zscore(x,a){const s=sd(a);return s?(x-mean(a))/s:0;}
+
+  function getSeries(symbol){
+    try{
+      const raw=window.__mteHistoricalCache||window.MTE_HISTORICAL_CACHE||null;
+      if(raw&&raw[symbol])return raw[symbol];
+    }catch(e){}
+    return null;
+  }
+
+  /*
+   * Initial impulse:
+   * - direction is determined by the first measured move
+   * - magnitude is normalized by recent realised volatility
+   * - eligible horizons are selected from the impulse rather than imposed globally
+   */
+  function measureImpulse(prices, index, windowBars){
+    if(!prices||index<windowBars||index>=prices.length)return null;
+    const start=prices[index-windowBars],end=prices[index],move=pct(end,start);
+    const r=priceReturns(prices).slice(Math.max(1,index-30),index);
+    const vol=sd(r)||0.01;
+    const expectedOneBarVol=vol*100;
+    const shock=Math.abs(move)/(Math.max(expectedOneBarVol*Math.sqrt(windowBars),0.05));
+    const direction=move>0?'LONG':move<0?'SHORT':'NEUTRAL';
+    return {direction,move,shock,windowBars,start,end};
+  }
+
+  /*
+   * Candidate duration logic is deliberately a filter, not a prediction.
+   * A very large impulse gets short eligible horizons first because the initial
+   * move can decay/reverse quickly. Sustained confirmation unlocks longer horizons.
+   */
+  function eligibleHorizons(impulse,confirmation){
+    if(!impulse)return [];
+    const h=MTE_OE.horizons;
+    let ids;
+    if(impulse.shock>=3)ids=['1H','4H','24H','3D'];
+    else if(impulse.shock>=2)ids=['4H','24H','3D','10D'];
+    else if(impulse.shock>=1.25)ids=['24H','3D','10D','30D'];
+    else ids=['3D','10D','30D','90D','6M','12M'];
+    if(confirmation>=0.75)ids=[...new Set(ids.concat(['30D','90D','6M','12M']))];
+    return h.filter(x=>ids.includes(x.id));
+  }
+
+  function trendScore(prices,index){
+    if(!prices||index<63)return {score:0,short:0,medium:0,long:0};
+    const p=prices[index];
+    const s=p/prices[index-5]-1;
+    const m=p/prices[index-21]-1;
+    const l=p/prices[index-63]-1;
+    const score=clamp((Math.sign(s)+Math.sign(m)+Math.sign(l))/3,-1,1);
+    return {score,short:s,medium:m,long:l};
+  }
+
+  function crossAssetConfirmation(target,peers,index,dir){
+    const signals=[];
+    Object.entries(peers||{}).forEach(([name,p])=>{
+      if(!p||index>=p.length||index<21)return;
+      const r=p[index]/p[index-21]-1;
+      const expected=dir==='LONG'?1:-1;
+      signals.push({name,return:r,aligned:Math.sign(r)===expected});
+    });
+    if(!signals.length)return {score:0,breadth:0,signals:[]};
+    const breadth=signals.filter(x=>x.aligned).length/signals.length;
+    return {score:breadth,breadth,signals};
+  }
+
+  /*
+   * Expected transmission is explicit and falsifiable.
+   * The engine does NOT assume an event caused the move merely because it happened first.
+   */
+  function scoreEventTransmission(event,actual){
+    const surprise=clamp(Number(event.surprise||0),0,1);
+    const expected=event.expectedDirection==='LONG'?1:event.expectedDirection==='SHORT'?-1:0;
+    const actualDir=actual.direction==='LONG'?1:actual.direction==='SHORT'?-1:0;
+    const directionMatch=expected===0?0.5:(expected===actualDir?1:0);
+    const magnitude=clamp(Math.abs(actual.abnormalReturn||0)/Math.max(Number(event.expectedMove||1),0.01),0,1);
+    const breadth=clamp(Number(actual.crossAssetBreadth||0),0,1);
+    const persistence=clamp(Number(actual.persistence||0),0,1);
+    const contradiction=clamp(Number(actual.contradiction||0),0,1);
+    const score=100*(
+      surprise*.15+
+      directionMatch*.20+
+      magnitude*.20+
+      breadth*.20+
+      persistence*.15+
+      (1-contradiction)*.10
+    );
+    return {score,directionMatch,magnitude,breadth,persistence,contradiction};
+  }
+
+  function eventConfirmation(prices,index,event,peers){
+    const impulse=measureImpulse(prices,index,Math.max(1,Number(event.impulseBars||1)));
+    if(!impulse)return null;
+    const benchmark=event.benchmarkPrices||[];
+    const abnormal=benchmark.length&&benchmark[index]&&benchmark[index-1]
+      ?(pct(prices[index],prices[index-1])-pct(benchmark[index],benchmark[index-1]))
+      :pct(prices[index],prices[index-1]);
+    const tr=trendScore(prices,index);
+    const ca=crossAssetConfirmation(event.symbol,peers,index,impulse.direction);
+    const persistenceWindow=Math.min(10,Math.max(3,index));
+    const after=[];
+    for(let j=0;j<persistenceWindow;j++){
+      const k=index-j;
+      if(k>0)after.push(impulse.direction==='LONG'?prices[k]/prices[k-1]-1:prices[k-1]/prices[k]-1);
+    }
+    const persistence=after.length?clamp(after.filter(x=>x>0).length/after.length,0,1):0;
+    const contradiction=tr.score!==0&&Math.sign(tr.score)!==(impulse.direction==='LONG'?1:-1)?Math.abs(tr.score):0;
+    const actual={
+      direction:impulse.direction,
+      abnormalReturn:abnormal,
+      crossAssetBreadth:ca.breadth,
+      persistence,
+      contradiction
+    };
+    const tx=scoreEventTransmission(event,actual);
+    return {impulse,trend:tr,crossAsset:ca,actual,transmission:tx,eligible:eligibleHorizons(impulse,tx.score/100)};
+  }
+
+  function durationStudy(prices,index,direction,horizons){
+    if(!prices||index<1)return [];
+    return horizons.map(h=>{
+      const end=Math.min(prices.length-1,index+h.bars);
+      if(end<=index)return {...h,return:0,bars:0};
+      const gross=direction==='LONG'?pct(prices[end],prices[index]):pct(prices[index],prices[end]);
+      return {...h,return:gross,bars:end-index};
+    });
+  }
+
+  function positionPlan(opportunity){
+    const capital=MTE_OE.capital;
+    const initial=Math.min(capital,MTE_OE.capital);
+    const riskPct=clamp(Number(opportunity.riskPct||1),0.25,2);
+    const riskDollars=capital*riskPct/100;
+    const stopPct=Math.max(Number(opportunity.stopPct||2),0.25);
+    const positionSize=Math.min(initial,riskDollars/(stopPct/100));
+    return {
+      initialAllocation:Math.min(initial,positionSize),
+      riskDollars,
+      stopPct,
+      maxExposure:MTE_OE.maxExposure,
+      maxConcurrent:MTE_OE.maxConcurrent,
+      addRules:[
+        'ADD 1 only after +1R AND renewed trend confirmation',
+        'ADD 2 only after +2R AND new higher-high/lower-low confirmation',
+        'Never add to a losing trade merely because price is cheaper',
+        'Recalculate total portfolio risk after every add',
+        'EXIT when the event thesis is invalidated or trend confirmation breaks'
+      ]
+    };
+  }
+
+  function makeOpportunity(event,confirmation,prices,index){
+    const duration=durationStudy(prices,index,confirmation.impulse.direction,confirmation.eligible);
+    const best=duration.slice().sort((a,b)=>b.return-a.return)[0]||null;
+    const plan=positionPlan(event);
+    const score=confirmation.transmission.score;
+    return {
+      id:'MTE-'+Date.now(),
+      event:{...event},
+      measurement:{
+        transmissionScore:score,
+        impulse:confirmation.impulse,
+        actual:confirmation.actual,
+        trend:confirmation.trend,
+        crossAsset:confirmation.crossAsset
+      },
+      durationStudy:duration,
+      selectedDuration:best,
+      position:plan,
+      state:score>=70?'TRADE CANDIDATE':score>=50?'WATCH':'REJECT'
+    };
+  }
+
+  function renderOpportunityResult(o){
+    const d=o.durationStudy||[];
+    const rows=d.map(x=>'<tr><td><b>'+esc(x.label)+'</b></td><td>'+(x.return>=0?'+':'')+x.return.toFixed(2)+'%</td><td>'+x.bars+'</td></tr>').join('');
+    const m=o.measurement,t=m.transmissionScore;
+    return '<div class="mte-oe-grid">'+
+      '<div class="box"><h4>EVENT</h4><div class="row"><span>Type</span><b>'+esc(o.event.type)+'</b></div><div class="row"><span>Expected direction</span><b>'+esc(o.event.expectedDirection)+'</b></div><div class="row"><span>Expected transmission</span><b>'+esc(o.event.channel)+'</b></div><div class="row"><span>Expected move</span><b>'+Number(o.event.expectedMove||0).toFixed(2)+'%</b></div></div>'+
+      '<div class="box"><h4>ACTUAL CONFIRMATION</h4><div class="row"><span>Transmission score</span><b>'+t.toFixed(0)+'/100</b></div><div class="row"><span>Abnormal return</span><b>'+Number(m.actual.abnormalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>Cross-asset breadth</span><b>'+(m.crossAsset.breadth*100).toFixed(0)+'%</b></div><div class="row"><span>Persistence</span><b>'+(m.actual.persistence*100).toFixed(0)+'%</b></div></div>'+
+      '<div class="box"><h4>TREND</h4><div class="row"><span>Short / medium / long</span><b>'+ (m.trend.short*100).toFixed(1)+'% / '+(m.trend.medium*100).toFixed(1)+'% / '+(m.trend.long*100).toFixed(1)+'%</b></div><div class="row"><span>Trend score</span><b>'+m.trend.score.toFixed(2)+'</b></div></div>'+
+      '<div class="box"><h4>POSITION</h4><div class="row"><span>Initial allocation</span><b>A$'+o.position.initialAllocation.toFixed(0)+'</b></div><div class="row"><span>Risk budget</span><b>A$'+o.position.riskDollars.toFixed(0)+'</b></div><div class="row"><span>Max concurrent</span><b>'+o.position.maxConcurrent+'</b></div><div class="row"><span>Decision</span><b>'+esc(o.state)+'</b></div></div>'+
+      '</div>'+
+      '<div class="box" style="margin-top:10px"><h4>MAX DURATION IS EVIDENCE-BASED</h4><div class="sub">The initial impulse determines which horizons are eligible. Continued confirmation unlocks longer horizons. A closed trade can create a new opportunity if the market makes a new low/high and the evidence resets.</div><table><thead><tr><th>HORIZON</th><th>FORWARD RETURN</th><th>BARS</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      '<div class="box" style="margin-top:10px"><h4>POSITION MANAGEMENT</h4><div class="sub">'+o.position.addRules.map(x=>'• '+esc(x)).join('<br>')+'</div></div>';
+  }
+
+  function addOpportunityEngineUI(){
+    if(document.getElementById('mteOpportunityEngine'))return;
+    const anchor=document.getElementById('mteExpandedStrategyLab')||document.getElementById('optimisationResults')||document.querySelector('main')||document.body;
+    const box=document.createElement('section');
+    box.id='mteOpportunityEngine';
+    box.className='panel';
+    box.innerHTML=
+      '<div class="mte-oe-head"><div><h2>MTE OPPORTUNITY ENGINE</h2><div class="sub">EVENT → EXPECTED TRANSMISSION → ACTUAL MARKET CONFIRMATION → TREND → POSITION</div></div><div class="mte-oe-badge">RESEARCH MODE</div></div>'+
+      '<div class="mte-oe-note">MTE does not assume an event caused a move. It records the expected transmission, measures the actual reaction against a benchmark where available, checks cross-asset confirmation and trend persistence, then decides whether the opportunity is tradable.</div>'+
+      '<div class="mte-oe-controls">'+
+        '<label>EVENT TYPE<select id="oeEventType">'+MTE_OE.eventTypes.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></label>'+
+        '<label>SYMBOL<input id="oeSymbol" value="QQQ"></label>'+
+        '<label>EXPECTED DIRECTION<select id="oeDirection"><option>LONG</option><option>SHORT</option></select></label>'+
+        '<label>TRANSMISSION CHANNEL<select id="oeChannel">'+MTE_OE.channels.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></label>'+
+        '<label>EXPECTED MOVE %<input id="oeExpectedMove" type="number" step="0.1" value="2"></label>'+
+        '<label>EVENT SURPRISE 0–1<input id="oeSurprise" type="number" min="0" max="1" step="0.05" value="0.8"></label>'+
+        '<label>IMPULSE BARS<input id="oeImpulseBars" type="number" min="1" value="1"></label>'+
+        '<label>RISK % OF CAPITAL<input id="oeRiskPct" type="number" min="0.25" max="2" step="0.25" value="1"></label>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button id="mteMeasureOpportunity" class="primary" type="button">MEASURE OPPORTUNITY</button><button id="mteRun12MReality" class="secondary" type="button">12M PORTFOLIO REALITY CHECK</button><button id="mteShowArchitecture" class="secondary" type="button">SYSTEM ARCHITECTURE</button></div>'+
+      '<div id="mteOpportunityResult" class="box" style="margin-top:14px"><div class="sub">Enter an event and measure the market response. Historical opportunity testing uses the available MTE cache; intraday 1H/4H research becomes live once intraday data is connected.</div></div>';
+    if(anchor===document.body)document.body.appendChild(box);else anchor.parentNode.insertBefore(box,anchor);
+    document.getElementById('mteMeasureOpportunity').addEventListener('click',measureOpportunityFromUI);
+    document.getElementById('mteRun12MReality').addEventListener('click',run12MRealityCheck);
+    document.getElementById('mteShowArchitecture').addEventListener('click',showMteArchitecture);
+  }
+
+  async function measureOpportunityFromUI(){
+    const symbol=document.getElementById('oeSymbol').value.trim()||'QQQ';
+    const prices=getSeries(symbol);
+    const result=document.getElementById('mteOpportunityResult');
+    if(!prices||prices.length<100){
+      result.innerHTML='<h3>DATA GATE</h3><div class="sub">No usable in-browser series was found for '+esc(symbol)+'. The opportunity engine is ready for the Python/GPU data service and intraday feed, but will not fabricate a result.</div>';
+      return;
+    }
+    const event={
+      type:document.getElementById('oeEventType').value,
+      symbol,
+      expectedDirection:document.getElementById('oeDirection').value,
+      channel:document.getElementById('oeChannel').value,
+      expectedMove:Number(document.getElementById('oeExpectedMove').value||0),
+      surprise:Number(document.getElementById('oeSurprise').value||0),
+      impulseBars:Math.max(1,Number(document.getElementById('oeImpulseBars').value||1)),
+      riskPct:Number(document.getElementById('oeRiskPct').value||1)
+    };
+    const index=prices.length-1;
+    const peers={};
+    ['SPY','QQQ','TLT','GLD','USO','XLE','XLF','UUP','BTC-USD','ETH-USD'].forEach(s=>{const p=getSeries(s);if(p&&p.length===prices.length)peers[s]=p;});
+    const c=eventConfirmation(prices,index,event,peers);
+    if(!c){result.innerHTML='<h3>DATA GATE</h3><div class="sub">Insufficient observations to measure the selected impulse.</div>';return;}
+    const o=makeOpportunity(event,c,prices,index);
+    result.innerHTML=renderOpportunityResult(o);
+  }
+
+  function run12MRealityCheck(){
+    const result=document.getElementById('mteOpportunityResult');
+    const symbol=document.getElementById('oeSymbol').value.trim()||'QQQ';
+    const p=getSeries(symbol);
+    if(!p||p.length<252){result.innerHTML='<h3>12M REALITY CHECK</h3><div class="sub">At least 252 observations are required. The Python/GPU engine will run the full rolling walk-forward and portfolio simulation across the complete universe.</div>';return;}
+    const start=Math.max(63,p.length-252),r=priceReturns(p).slice(start);
+    let eq=1,peak=1,dd=0,pos=0,neg=0;
+    r.forEach(x=>{eq*=1+x;peak=Math.max(peak,eq);dd=Math.max(dd,(peak-eq)/peak*100);if(x>0)pos+=x;else neg+=x;});
+    const months=[];
+    for(let i=0;i<r.length;i+=21){const x=r.slice(i,i+21);months.push(x.reduce((a,b)=>a*(1+b),1)-1);}
+    const avgMonth=mean(months)*100;
+    const sh=sd(r)?mean(r)/sd(r)*Math.sqrt(252):0;
+    result.innerHTML='<h3>12M PORTFOLIO REALITY CHECK · '+esc(symbol)+'</h3>'+
+      '<div class="mte-oe-grid">'+
+      '<div class="box"><h4>RETURN</h4><div class="row"><span>12M return</span><b>'+((eq-1)*100).toFixed(2)+'%</b></div><div class="row"><span>Average month</span><b>'+avgMonth.toFixed(2)+'%</b></div></div>'+
+      '<div class="box"><h4>RISK</h4><div class="row"><span>Max drawdown</span><b>'+dd.toFixed(2)+'%</b></div><div class="row"><span>Sharpe</span><b>'+sh.toFixed(2)+'</b></div></div>'+
+      '<div class="box"><h4>MONTHS</h4><div class="row"><span>Positive months</span><b>'+months.filter(x=>x>0).length+'/'+months.length+'</b></div><div class="row"><span>Best month</span><b>+'+(Math.max(...months)*100).toFixed(2)+'%</b></div><div class="row"><span>Worst month</span><b>'+ (Math.min(...months)*100).toFixed(2)+'%</b></div></div>'+
+      '</div>'+
+      '<div class="sub" style="margin-top:10px">This is a descriptive 12-month reality check on the selected cached asset, not the final MTE portfolio test. The production Python engine will add A$10K initial allocations, maximum 5 concurrent trades, transaction costs, slippage, pyramiding rules, rolling 24M→3M walk-forward validation and aggregate out-of-sample statistics.</div>';
+  }
+
+  function showMteArchitecture(){
+    const result=document.getElementById('mteOpportunityResult');
+    result.innerHTML='<h3>MTE PRODUCTION ARCHITECTURE</h3>'+
+      '<div class="mte-architecture">'+
+      '<div><b>1 · DATA</b><span>News/events · market prices · volatility · volume · cross-asset relationships · macro calendar</span></div>'+
+      '<div><b>2 · EVENT ENGINE</b><span>Event classification → expected transmission → surprise → affected assets</span></div>'+
+      '<div><b>3 · MARKET CONFIRMATION</b><span>Abnormal return → breadth → correlation → volatility → persistence</span></div>'+
+      '<div><b>4 · TECHNICAL ENGINE</b><span>Trend + momentum + breakout + volatility regime; no indicator pile-up</span></div>'+
+      '<div><b>5 · OPPORTUNITY ENGINE</b><span>Impulse size determines eligible horizons; confirmation unlocks longer duration</span></div>'+
+      '<div><b>6 · PORTFOLIO ENGINE</b><span>A$10K initial trade · max 5 concurrent · max A$50K exposure · risk-budgeted adds</span></div>'+
+      '<div><b>7 · RESEARCH ENGINE</b><span>Python + NumPy/pandas/Numba where appropriate + GPU acceleration for large parameter/event grids</span></div>'+
+      '<div><b>8 · WALK-FORWARD</b><span>24M train → 3M OOS rolling windows; report OOS only for production validation</span></div>'+
+      '<div><b>9 · PAPER TRADING</b><span>Live signal → broker adapter → paper orders → fills → portfolio state → audit log</span></div>'+
+      '<div><b>10 · LIVE</b><span>Same adapter contract, with hard exposure/risk/kill-switch controls before any live deployment</span></div>'+
+      '</div>';
+  }
+
+  const style=document.createElement('style');
+  style.textContent='.mte-oe-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.mte-oe-badge{font-size:10px;font-weight:900;padding:5px 8px;border:1px solid #cfd5dc;border-radius:999px}.mte-oe-note{margin:10px 0;padding:10px;border-left:3px solid #111;background:#f7f8fa;font-size:11px}.mte-oe-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.mte-oe-controls label{font-size:9px;font-weight:900}.mte-oe-controls input,.mte-oe-controls select{display:block;width:100%;margin-top:4px;padding:7px;font-size:11px;box-sizing:border-box}.mte-oe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.mte-oe-grid .box{margin:0}.mte-architecture{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mte-architecture>div{padding:10px;border:1px solid #dfe3e8;border-radius:6px;background:#fff}.mte-architecture b{display:block;font-size:10px;margin-bottom:4px}.mte-architecture span{font-size:11px;color:#555}@media(max-width:900px){.mte-oe-controls,.mte-oe-grid,.mte-architecture{grid-template-columns:1fr 1fr}}@media(max-width:600px){.mte-oe-controls,.mte-oe-grid,.mte-architecture{grid-template-columns:1fr}}';
+  document.head.appendChild(style);
+
+  window.MTEOpportunityEngine={
+    version:MTE_OE.version,
+    measureImpulse,
+    eligibleHorizons,
+    scoreEventTransmission,
+    eventConfirmation,
+    durationStudy,
+    positionPlan,
+    makeOpportunity
+  };
+
+  function init(){addOpportunityEngineUI();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
