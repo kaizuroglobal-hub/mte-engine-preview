@@ -431,8 +431,8 @@
     const panel=document.getElementById('mteExpandedResultsBody');
     const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
     if(!selected.length){alert('Select at least one expanded strategy.');return;}
-    window.__mteLabProgress={discovery:0,deep:0,robust:0};
-    updateLabProgress({discovery:0,deep:0,robust:0});
+    initLabProgress('expanded|'+asset);
+    updateLabProgress({});
     if(panel)panel.innerHTML='<h3>MTE STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading multi-asset historical cache…</div>';
     if(status)status.textContent='MTE LAB RUNNING';
     try{
