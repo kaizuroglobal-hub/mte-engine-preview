@@ -106,6 +106,15 @@ function labSignal(closes,i,type,p){
  return 0;
 }
 function labExit(closes,entryIndex,direction,model,p){
+ // Backward-compatible argument handling: older builds passed (closes, entryIndex, model, p).
+ if(typeof direction==='string'){
+  p=model||{};
+  model=direction;
+  direction=1;
+ }
+ direction=direction===-1?-1:1;
+ model=model||'TIME';
+ p=p||{};
  const entry=closes[entryIndex],risk=Math.max(labATR(closes.slice(0,entryIndex+1),14),entry*0.005),atrMult=p.atrMult||2.5;
  const horizon=p.horizon||40;
  let best=entry;
@@ -133,6 +142,7 @@ function labScenario(closes,dates,type,p,exitModel,cfg){
  }
  if(side!==0&&entryIndex>=0){const ex=labExit(closes,entryIndex,side,'TIME',{horizon:Math.min(40,closes.length-entryIndex-1),atrMult:2.5}),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px);trades.push({direction:side===1?'LONG':'SHORT',ret:gross-btCostPct(cfg),bars:ex.idx-entryIndex,reason:'END_OF_TEST',entryDate:dates[entryIndex],exitDate:dates[ex.idx],entryPrice,exitPrice:ex.px})}
  const r=summariseTrades('',trades,closes.length,'TECHNICAL LAB · '+STRATEGY_LIBRARY[type].name,cfg,dates);
+ // A valid scenario is still a result even when its trade count is zero; filters decide qualification.
  return r?{...r,type,params:p,exitModel}:null;
 }
 function labGrid(type,stage){
