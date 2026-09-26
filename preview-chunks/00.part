@@ -109,7 +109,33 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   </div>
   <div class="actions" style="margin-top:14px"><button class="primary" onclick="runBacktest()">RUN BACKTEST</button><button onclick="optimiseBacktest()">OPTIMISE TECHNICAL</button><button onclick="selectNextAsset()">NEXT ASSET</button></div>
  </div>
- <div class="detail-grid" id="backtestResults"></div>
+ <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
+  <h3>TECHNICAL OPTIMISATION FILTERS</h3>
+  <div class="sub">The optimiser varies Technical 01 parameters while keeping the selected asset, dates, capital and trading costs fixed.</div>
+  <div class="control-grid" style="margin-top:12px">
+    <label><span>FAST MA MIN</span><input id="optFastMin" type="number" min="2" max="100" step="1" value="2"></label>
+    <label><span>FAST MA MAX</span><input id="optFastMax" type="number" min="2" max="100" step="1" value="20"></label>
+    <label><span>FAST MA STEP</span><input id="optFastStep" type="number" min="1" max="20" step="1" value="1"></label>
+    <label><span>SLOW MA MIN</span><input id="optSlowMin" type="number" min="3" max="250" step="1" value="10"></label>
+    <label><span>SLOW MA MAX</span><input id="optSlowMax" type="number" min="3" max="250" step="1" value="100"></label>
+    <label><span>SLOW MA STEP</span><input id="optSlowStep" type="number" min="1" max="50" step="1" value="10"></label>
+    <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
+    <label><span>MIN TOTAL RETURN %</span><input id="optMinReturn" type="number" step="0.1" value="0"></label>
+    <label><span>MIN PROFIT FACTOR</span><input id="optMinPF" type="number" min="0" step="0.05" value="0"></label>
+    <label><span>MIN SHARPE</span><input id="optMinSharpe" type="number" step="0.1" value="0"></label>
+    <label><span>MAX DRAWDOWN %</span><input id="optMaxDD" type="number" min="0" max="100" step="0.5" value="100"></label>
+    <label><span>MAX SCENARIOS</span><input id="optMaxScenarios" type="number" min="10" max="10000" step="10" value="3000"></label>
+    <label><span>RANK BY</span><select id="optRankBy"><option value="totalReturn">TOTAL RETURN</option><option value="sharpe">SHARPE</option><option value="profitFactor">PROFIT FACTOR</option><option value="maxDrawdown">LOWEST MAX DRAWDOWN</option><option value="averageReturn">AVERAGE RETURN / TRADE</option></select></label>
+  </div>
+  <div style="margin-top:12px"><span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">TIMEFRAME SCENARIOS</span>
+    <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px"><input type="checkbox" class="opt-timeframe" value="4H context · 1H management · 15M execution" checked> 4H / 1H / 15M</label>
+    <label style="display:inline-flex;align-items:center;gap:7px;font-size:11px"><input type="checkbox" class="opt-timeframe" value="1H context · 15M management · 5M execution" checked> 1H / 15M / 5M</label>
+  </div>
+  <div style="margin-top:12px"><span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">EXIT MODEL SCENARIOS</span>
+    <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="STRUCTURE_1H" checked> STRUCTURE_1H</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="FIXED_2R" checked> FIXED_2R</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ATR_2_5" checked> ATR_2_5</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ATR_3_0" checked> ATR_3_0</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="HYBRID" checked> HYBRID</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ADAPTIVE" checked> ADAPTIVE</label>
+  </div>
+  <div class="sub" style="margin-top:10px">Note: the current Technical 01 calculation is MA-driven. Timeframe and exit selections are retained as scenario dimensions, but they do not currently change the Technical 01 calculation on the committed daily historical cache.</div>
+</div><div class="detail-grid" id="backtestResults"></div>
  <div id="btTrades"></div>
  <div class="box" style="margin-top:15px"><h3>STRATEGY / ASSET TESTING</h3><div class="sub" id="btExplanation">Select any asset and strategy above. The paper engine can test the same asset across Macro 01, Technical 01 and later Weighted 01 without changing the asset universe.</div></div>
  </section>
