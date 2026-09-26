@@ -27,7 +27,7 @@ main{max-width:1480px;margin:auto;padding:30px}.head{display:flex;justify-conten
 table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d7dde3;border-radius:5px;overflow:hidden}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid #e6eaed;font-size:11px}th{color:#707b86;font-weight:650;background:#f8f9fa}tr:last-child td{border:0}
 .badge{padding:4px 7px;border-radius:3px;background:#edf7f2;color:#167b57;font-size:9px;font-weight:700}.badge.gray{background:#eef1f3;color:#66727d}.badge.amber{background:#fff7e8;color:#956300}
 footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a858f;font-size:10px;display:flex;justify-content:space-between;background:#fff}
-.toast{position:fixed;right:25px;bottom:25px;background:#18212b;color:#fff;padding:12px 16px;border-radius:4px;font-size:11px;display:none;z-index:30}.mte-collapse-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;margin:0}.mte-open-lab-btn{font-size:11px!important;padding:7px 12px!important;min-width:82px}.mte-lab-run-btn{font-size:11px!important;padding:7px 12px!important}.mte-collapse-head h3{margin:0!important}.mte-collapse-toggle{width:28px;height:28px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #cdd4db;border-radius:4px;color:#34404b;font-size:16px;line-height:1;font-weight:700;cursor:pointer}.mte-collapse-body{margin-top:12px}.mte-collapse-body.is-collapsed{display:none}.mte-collapsible-result{display:block!important}.mte-results-grid .box{margin:0}.mte-results-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:15px}@media(max-width:1050px){.mte-results-grid{grid-template-columns:1fr}}
+.toast{position:fixed;right:25px;bottom:25px;background:#18212b;color:#fff;padding:12px 16px;border-radius:4px;font-size:11px;display:none;z-index:30}.mte-collapse-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;margin:0}.mte-open-lab-btn{font-size:11px!important;padding:7px 12px!important;min-width:82px}.mte-lab-run-btn{font-size:11px!important;padding:7px 12px!important}.mte-collapse-head h3{margin:0!important}.mte-collapse-toggle{width:28px;height:28px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #cdd4db;border-radius:4px;color:#34404b;font-size:16px;line-height:1;font-weight:700;cursor:pointer}.mte-collapse-body{margin-top:12px}.mte-collapse-body.is-collapsed{display:none}.mte-collapsible-result{display:block!important}.mte-results-grid .box{margin:0}.mte-results-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:15px}.lab-help{font-size:11px;color:#66727d;line-height:1.45}.lab-step{border:1px solid #d7dde3;background:#fff;border-radius:7px;padding:14px}.lab-step-title{font-size:10px;font-weight:900;letter-spacing:.04em;color:#66727d;margin-bottom:9px}.lab-choice{border:1px solid #d7dde3!important;background:#fff!important;border-radius:7px!important;transition:.12s ease}.lab-choice[data-selected='1']{border-color:#18212b!important;box-shadow:0 0 0 1px #18212b;background:#f7f9fb!important}.lab-family-card{position:relative;display:flex!important;align-items:flex-start;gap:9px;padding:10px!important;min-height:72px;cursor:pointer}.lab-family-card:hover{border-color:#aeb8c2!important}.lab-family-card input{margin-top:2px}.lab-family-test{margin-left:auto;padding:5px 8px!important;font-size:9px!important;white-space:nowrap}.lab-run-primary{font-size:12px!important;font-weight:850!important;padding:12px 14px!important;border-radius:6px!important}.lab-history-run{border:1px solid #e1e5e9;border-radius:6px;padding:10px 12px;background:#fff;margin-bottom:7px}.lab-history-meta{font-size:10px;color:#697581}.lab-status-complete{color:#12885c}.lab-status-running{color:#956300}@media(max-width:1050px){.mte-results-grid{grid-template-columns:1fr}}
 @media(max-width:1050px){.grid{grid-template-columns:1fr 1fr}.detail-grid{grid-template-columns:1fr}.head{display:block}.metrics{margin-top:22px}}
 @media(max-width:700px){.grid{grid-template-columns:1fr}.switch{display:none}main{padding:20px}.metrics{gap:15px;flex-wrap:wrap}}
 
@@ -117,23 +117,23 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
     <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH ENGINE</div>
-    <div id="strategyLabPath" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')" style="text-align:left;padding:9px 12px"><b>TECHNICAL STRATEGY LAB</b><br><span class="sub">Price-based signal discovery & optimisation</span></button>
-      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')" style="text-align:left;padding:9px 12px"><b>EXPANDED MTE LAB</b><br><span class="sub">Core macro / cross-asset research</span></button>
+    <div id="strategyLabPath" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')" class="lab-choice" style="text-align:left;padding:12px"><b>TECHNICAL STRATEGY LAB</b><br><span class="sub">Price-based signal discovery & optimisation</span></button>
+      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')" class="lab-choice" style="text-align:left;padding:12px"><b>EXPANDED MTE LAB</b><br><span class="sub">Core macro / cross-asset research</span></button>
     </div>
 
     <div style="font-size:11px;font-weight:800;margin:15px 0 8px">STEP 2 · RESEARCH STAGE</div>
     <div id="strategyLabStages" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-      <button type="button" data-lab-stage="discovery" onclick="setStrategyLabStage('discovery')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>1 · DISCOVER</b><br><span class="sub">Find strategy families</span></button>
-      <button type="button" data-lab-stage="deep" onclick="setStrategyLabStage('deep')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>2 · OPTIMISE</b><br><span class="sub">Deep-search parameters</span></button>
-      <button type="button" data-lab-stage="robust" onclick="setStrategyLabStage('robust')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>3 · VALIDATE</b><br><span class="sub">Test OOS robustness</span></button>
+      <button type="button" data-lab-stage="discovery" onclick="setStrategyLabStage('discovery')" class="lab-choice" style="text-align:left;padding:11px;cursor:pointer"><b>1 · DISCOVER</b><br><span class="sub">Find strategy families</span></button>
+      <button type="button" data-lab-stage="deep" onclick="setStrategyLabStage('deep')" class="lab-choice" style="text-align:left;padding:11px;cursor:pointer"><b>2 · OPTIMISE</b><br><span class="sub">Deep-search parameters</span></button>
+      <button type="button" data-lab-stage="robust" onclick="setStrategyLabStage('robust')" class="lab-choice" style="text-align:left;padding:11px;cursor:pointer"><b>3 · VALIDATE</b><br><span class="sub">Test OOS robustness</span></button>
     </div>
 
-    <div id="strategyLabRunState" class="sub" style="margin-top:10px">Technical Strategy Lab · Stage 1 · Discovery</div>
-    <button type="button" id="strategyLabRun" class="primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%;padding:11px">RUN STAGE 1 · DISCOVERY</button>
+    <div id="strategyLabRunState" class="lab-help" style="margin-top:10px">Technical Strategy Lab · Stage 1 · Discovery</div>
+    <button type="button" id="strategyLabRun" class="primary lab-run-primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%">RUN STAGE 1 · DISCOVERY</button><div class="lab-help" style="margin-top:7px;text-align:center">Choose the engine and stage above, then press RUN. Changing a signal family only changes the test selection until you press RUN.</div>
   </div>
 
-  <div id="technicalLabAdvanced" data-collapsed="1" style="margin-top:12px;display:none">
+  <div id="technicalLabAdvanced" data-collapsed="0" style="margin-top:12px;display:block">
     <div style="padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc;margin-bottom:12px">
       <div style="font-size:12px;font-weight:900">TECHNICAL COMPONENT RESEARCH · MACRO 01</div>
       <div class="sub" style="margin-top:5px;line-height:1.5">Technical research is a supporting research engine for MACRO 01. It discovers price-based signal families that can later be combined with the Macro / Cross-Asset engine. It does not replace Macro 01 and does not independently define a live trading signal.</div>
@@ -143,7 +143,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
         <span style="font-size:10px;font-weight:800;padding:5px 8px;border:1px solid #cfd6de;border-radius:999px;background:#fff">STAGE 1 → 2 → 3</span>
       </div>
     </div>
-    <div style="font-size:11px;font-weight:800;margin-bottom:8px">TECHNICAL RESEARCH CONTROLS</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:11px;font-weight:900">RESEARCH SETTINGS</div><button type="button" id="technicalOptimiserToggle" class="mte-collapse-toggle" onclick="toggleTechnicalOptimiserFilters()" aria-label="Collapse research settings">⌃</button></div>
     <div class="control-grid">
       <label style="display:none"><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
       <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
@@ -156,8 +156,8 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
     </div>
     <div style="margin-top:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px">
-        <span style="font-size:11px;font-weight:700">SIGNAL FAMILIES</span>
-        <span style="display:flex;align-items:center;gap:8px"><span id="strategyFamilyCount" class="sub">0 selected</span><button type="button" onclick="runCurrentStrategyLabStage()" class="secondary" style="padding:6px 10px;font-size:10px;font-weight:800">RUN SELECTED</button></span>
+        <span style="font-size:11px;font-weight:900">SIGNAL FAMILIES</span>
+        <span style="display:flex;align-items:center;gap:8px"><span id="strategyFamilyCount" class="sub">0 selected</span><button type="button" onclick="runCurrentStrategyLabStage()" class="primary" style="padding:7px 10px;font-size:10px;font-weight:850">RUN SELECTED</button></span>
       </div>
       <div id="strategyFamilyChecks" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px"></div>
     </div>
