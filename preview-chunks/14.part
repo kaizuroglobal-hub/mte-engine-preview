@@ -182,56 +182,74 @@ async function runStrategyDiscovery(){
  const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
- status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+' strategy discovery…</div>';
+ status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
   if(!families.length)throw new Error('Select at least one strategy family.');
   if(!exits.length)throw new Error('Select at least one exit model.');
-  const candidates=[],discoveryBest=[];
+  const allResults=[],qualified=[],familyBest={},errors=[];
   let scenarioCount=0;
-  const runOne=async(type,p,exit)=>{
-   try{const r=labScenario(closes,dates,type,p,exit,cfg);if(r&&labFilter(r,f)){candidates.push({result:r});return true}}catch(err){console.warn('Strategy Lab scenario skipped',type,p,exit,err)}return false;
+  const runScenario=async(type,p,exit)=>{
+   scenarioCount++;
+   try{
+    const r=labScenario(closes,dates,type,p,exit,cfg);
+    if(r){
+     const item={result:r};
+     allResults.push(item);
+     if(labFilter(r,f))qualified.push(item);
+     if(!familyBest[type]||labRank([item,familyBest[type]],f.rankBy)[0]===item)familyBest[type]=item;
+     return item;
+    }
+   }catch(err){errors.push({type,p,exit,error:String(err?.message||err)})}
+   return null;
   };
   const usableFamilies=families.filter(type=>STRATEGY_LIBRARY[type]&&type!=='VWAP_REVERSION'&&type!=='VOLUME_BREAKOUT');
+  const discoveryBest=[];
   for(const type of usableFamilies){
-   const grids=labGrid(type,stage==='discovery'?'discovery':'discovery');
-   const familyRuns=[];
+   const grids=labGrid(type,'discovery');
    for(const p of grids)for(const exit of exits){
-    scenarioCount++;
-    const ok=await runOne(type,p,exit);
-    if(ok)familyRuns.push(candidates[candidates.length-1]);
-    if(scenarioCount%20===0){panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';await new Promise(resolve=>setTimeout(resolve,0))}
+    await runScenario(type,p,exit);
+    if(scenarioCount%20===0){
+     panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';
+     await new Promise(resolve=>setTimeout(resolve,0));
+    }
    }
-   if(familyRuns.length){labRank(familyRuns,f.rankBy);discoveryBest.push(familyRuns[0])}
+   if(familyBest[type])discoveryBest.push(familyBest[type]);
    await new Promise(resolve=>setTimeout(resolve,0));
   }
-  let finalCandidates=candidates;
+  labRank(discoveryBest,f.rankBy);
+  let finalResults=allResults;
   if(stage==='deep'||stage==='robust'){
-   labRank(discoveryBest,f.rankBy);
    const selectedTypes=discoveryBest.slice(0,Math.max(3,f.topN)).map(x=>x.result.type);
-   finalCandidates=[];
+   finalResults=[];
    for(const type of selectedTypes){
     const grids=labGrid(type,'deep');
     for(const p of grids)for(const exit of exits){
-     scenarioCount++;
-     const ok=await runOne(type,p,exit);
-     if(ok)finalCandidates.push(candidates[candidates.length-1]);
-     if(scenarioCount%20===0){panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';await new Promise(resolve=>setTimeout(resolve,0))}
+     const item=await runScenario(type,p,exit);
+     if(item)finalResults.push(item);
+     if(scenarioCount%20===0){
+      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';
+      await new Promise(resolve=>setTimeout(resolve,0));
+     }
     }
    }
   }
   if(stage==='robust'){
-   labRank(finalCandidates,f.rankBy);
-   const top=finalCandidates.slice(0,Math.max(f.topN,10));
-   return await runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain);
+   const base=labRank(finalResults.length?finalResults:discoveryBest,f.rankBy).slice(0,Math.max(3,f.topN));
+   return await runStrategyRobustness(asset,closes,dates,cfg,f,base,panel,status,explain);
   }
-  labRank(stage==='discovery'?discoveryBest:finalCandidates,f.rankBy);
-  const displayTop=(stage==='discovery'?discoveryBest:finalCandidates).slice(0,f.topN);
-  const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Passing scenarios</span><b>'+((stage==='discovery'?candidates:finalCandidates).length).toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Stage '+(stage==='discovery'?'1 compares strategy families using the coarse discovery grid. Stage 2 deep-searches the strongest families.':'2 searches the deeper parameter grids selected from Stage 1.')+' The standard RUN BACKTEST engine was not modified.</div>';
-  if(displayTop[0]){const b=displayTop[0].result;explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+b.totalReturn.toFixed(2)+'% return.'}
-  else explain.textContent='STRATEGY LAB COMPLETE · No scenarios passed the current filters.';
+  const source=stage==='discovery'?discoveryBest:finalResults;
+  labRank(source,f.rankBy);
+  const filteredSource=source.filter(x=>labFilter(x.result,f));
+  const displayTop=(filteredSource.length?filteredSource:source).slice(0,f.topN);
+  const filterState=filteredSource.length?'FILTERS PASSED':'NO SCENARIO PASSED FILTERS — SHOWING BEST RAW RESULTS';
+  const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td class="'+(x.result.totalReturn>=0?'good':'warn')+'">'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Discovery compares genuine daily-close strategy logic. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';
+  if(displayTop[0]){
+   const b=displayTop[0].result;
+   explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+(b.totalReturn>=0?'+':'')+b.totalReturn.toFixed(2)+'% return.';
+  }else explain.textContent='STRATEGY LAB COMPLETE · No valid scenarios were generated.';
   status.textContent='LAB COMPLETE';
  }catch(e){console.error('Strategy Lab failed',e);panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+(e?.message||String(e))+'</div>';explain.textContent='STRATEGY LAB FAILED · '+(e?.message||String(e));status.textContent='ERROR'}
 }
