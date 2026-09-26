@@ -53,6 +53,9 @@ function summariseTrades(symbol,trades,bars,strategy,cfg,dates){
  return {symbol,strategy,bars,trades:rs.length,winRate:rs.length?wins.length/rs.length*100:0,averageReturn:rs.length?rs.reduce((a,x)=>a+x,0)/rs.length:0,totalReturn:(equity/cfg.capital-1)*100,pnl:equity-cfg.capital,endingCapital:equity,profitFactor:grossLoss?grossWin/grossLoss:0,maxDrawdown:dd,averageHold:rs.length?trades.reduce((a,t)=>a+t.bars,0)/rs.length:0,best:rs.length?Math.max(...rs):0,worst:rs.length?Math.min(...rs):0,sharpe,tradeList:trades,startDate:dates?.[0]||'',endDate:dates?.[dates.length-1]||'',costPct:btCostPct(cfg)};
 }
 
+const backtestHistory=[];
+function toggleBacktestHistory(){const body=document.getElementById('backtestHistoryBody'),btn=document.querySelector('#backtestHistory button');if(!body||!btn)return;const hidden=body.style.display==='none';body.style.display=hidden?'':'none';btn.textContent=hidden?'HIDE HISTORY ▾':'SHOW HISTORY ▸';}
+function renderBacktestHistory(){const body=document.getElementById('backtestHistoryBody');if(!body)return;if(!backtestHistory.length){body.textContent='No previous runs in this session.';return}body.innerHTML='<div style="overflow:auto"><table><thead><tr><th>#</th><th>STRATEGY</th><th>ASSET</th><th>WINDOW</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>TRADES</th></tr></thead><tbody>'+backtestHistory.slice().reverse().map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+r.strategy+'</td><td>'+r.symbol+'</td><td>'+r.startDate+' → '+r.endDate+'</td><td class="'+(r.totalReturn>=0?'good':'warn')+'">'+(r.totalReturn>=0?'+':'')+r.totalReturn.toFixed(2)+'%</td><td>'+r.profitFactor.toFixed(2)+'</td><td>'+r.sharpe.toFixed(2)+'</td><td>'+r.maxDrawdown.toFixed(2)+'%</td><td>'+r.trades+'</td></tr>').join('')+'</tbody></table></div>'}
 const STRATEGY_LIBRARY={
  MA_CROSSOVER:{name:'MA Crossover',desc:'Simple moving-average trend crossover',params:'fast/slow'},
  EMA_MOMENTUM:{name:'EMA Momentum',desc:'EMA trend alignment plus momentum confirmation',params:'fast/slow/momentum'},
@@ -300,7 +303,7 @@ async function runBacktest(){
   const rows=result.tradeList.map((t,i)=>'<tr><td>'+(i+1)+'</td><td>'+t.entryDate+'</td><td>'+t.exitDate+'</td><td>'+t.direction+'</td><td>$'+Number(t.entryPrice).toFixed(2)+'</td><td>$'+Number(t.exitPrice).toFixed(2)+'</td><td class="'+(t.ret>=0?'good':'warn')+'">'+(t.ret>=0?'+':'')+t.ret.toFixed(2)+'%</td><td>'+t.reason+'</td></tr>').join('');
   tradesPanel.innerHTML='<div class="box" style="margin-top:15px"><h3>INDIVIDUAL TRADE OUTCOMES</h3><div style="overflow:auto"><table><thead><tr><th>#</th><th>ENTRY</th><th>EXIT</th><th>SIDE</th><th>ENTRY PX</th><th>EXIT PX</th><th>NET RETURN</th><th>EXIT REASON</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   document.getElementById('btExplanation').textContent='REAL HISTORICAL RUN · '+result.strategy+' · '+asset+'. Custom dates, capital, execution costs, timeframe, exit model and Technical 01 train/OOS optimisation are applied to the committed MTE historical cache.';
-  backtestCache[strategy+'|'+asset+'|'+exit+'|'+cfg.start+'|'+cfg.end]=result;
+  backtestCache[strategy+'|'+asset+'|'+exit+'|'+cfg.start+'|'+cfg.end]=result;backtestHistory.push(result);if(backtestHistory.length>20)backtestHistory.shift();renderBacktestHistory();
  }catch(e){if(window.__mteBacktestRunId===runId){status.textContent='ERROR';results.innerHTML='<div class="box"><h3>BACKTEST FAILED</h3><div class="sub">'+e.message+'</div></div>';document.getElementById('btExplanation').textContent='BACKTEST FAILED · '+e.message;}}
  finally{if(runButton){runButton.disabled=false;runButton.textContent='RUN BACKTEST';}}
 }
