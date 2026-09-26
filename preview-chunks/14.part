@@ -186,12 +186,27 @@ function labGrid(type,stage){
 }
 function labFilter(r,f){return r&&r.trades>=f.minTrades&&r.totalReturn>=f.minReturn&&r.profitFactor>=f.minPF&&r.sharpe>=f.minSharpe&&r.maxDrawdown<=f.maxDD}
 function labRank(arr,metric){return arr.sort((a,b)=>{const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];return metric==='maxDrawdown'?av-bv:bv-av})}
+function labProgressHTML(){
+ const p=window.__mteLabProgress||{discovery:0,deep:0,robust:0};
+ const rows=[['STAGE 1 · DISCOVERY',p.discovery],['STAGE 2 · DEEP OPTIMISATION',p.deep],['STAGE 3 · ROBUSTNESS',p.robust]];
+ return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS</h3>'+rows.map(x=>'<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+x[0]+'</span><span>'+Math.round(x[1])+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,x[1]))+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div>').join('')+'</div>';
+}
+function updateLabProgress(patch){
+ window.__mteLabProgress={...(window.__mteLabProgress||{discovery:0,deep:0,robust:0}),...patch};
+ const old=document.getElementById('strategyLabProgress');
+ if(old)old.outerHTML=labProgressHTML();
+ else{
+  const panel=document.getElementById('optimisationResults');
+  if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML());
+ }
+}
 async function runStrategyDiscovery(){
  const asset=document.getElementById('btAsset')?.value,cfg=getBTConfig(),stage=document.getElementById('labStage')?.value||'discovery';
  const f={minTrades:Math.max(0,Number(document.getElementById('optMinTrades')?.value)||0),minReturn:Number(document.getElementById('optMinReturn')?.value)||0,minPF:Math.max(0,Number(document.getElementById('optMinPF')?.value)||0),minSharpe:Number(document.getElementById('optMinSharpe')?.value)||0,maxDD:Math.max(0,Number(document.getElementById('optMaxDD')?.value)||100),rankBy:document.getElementById('optRankBy')?.value||'totalReturn',topN:Math.max(1,Number(document.getElementById('labTopN')?.value)||10)};
  const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
+ window.__mteLabProgress={discovery:0,deep:0,robust:0};
  status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
@@ -215,11 +230,13 @@ async function runStrategyDiscovery(){
    return null;
   };
   const usableFamilies=families.filter(type=>STRATEGY_LIBRARY[type]&&type!=='VWAP_REVERSION'&&type!=='VOLUME_BREAKOUT');
+  const discoveryTotal=usableFamilies.reduce((n,type)=>n+labGrid(type,'discovery').length*exits.length,0);
   const discoveryBest=[];
   for(const type of usableFamilies){
    const grids=labGrid(type,'discovery');
    for(const p of grids)for(const exit of exits){
     await runScenario(type,p,exit);
+    updateLabProgress({discovery:discoveryTotal?scenarioCount/discoveryTotal*100:100});
     if(scenarioCount%20===0){
      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';
      await new Promise(resolve=>setTimeout(resolve,0));
@@ -229,21 +246,27 @@ async function runStrategyDiscovery(){
    await new Promise(resolve=>setTimeout(resolve,0));
   }
   labRank(discoveryBest,f.rankBy);
+  updateLabProgress({discovery:100});
   let finalResults=allResults;
   if(stage==='deep'||stage==='robust'){
    const selectedTypes=discoveryBest.slice(0,Math.max(3,f.topN)).map(x=>x.result.type);
+   const deepTotal=selectedTypes.reduce((n,type)=>n+labGrid(type,'deep').length*exits.length,0);
+   let deepDone=0;
    finalResults=[];
    for(const type of selectedTypes){
     const grids=labGrid(type,'deep');
     for(const p of grids)for(const exit of exits){
      const item=await runScenario(type,p,exit);
      if(item)finalResults.push(item);
+     deepDone++;
+     updateLabProgress({deep:deepTotal?deepDone/deepTotal*100:100});
      if(scenarioCount%20===0){
       panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';
       await new Promise(resolve=>setTimeout(resolve,0));
      }
     }
    }
+   updateLabProgress({deep:100});
   }
   if(stage==='robust'){
    const base=labRank(finalResults.length?finalResults:discoveryBest,f.rankBy).slice(0,Math.max(3,f.topN));
@@ -306,14 +329,21 @@ function labStability(closes,dates,r,cfg){
 }
 async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain){
  const rows=[];
- for(const c of top.slice(0,Math.max(3,f.topN))){
+ const robustTotal=Math.max(3,f.topN);
+ let robustDone=0;
+ updateLabProgress({robust:0});
+ for(const c of top.slice(0,robustTotal)){
   const r=c.result,split=Math.max(120,Math.floor(closes.length*.7));
   const oos=labScenario(closes.slice(split),dates.slice(split),r.type,r.params,r.exitModel,cfg);
   const stab=labStability(closes,dates,r,cfg),wf=labWalkForward(closes,dates,r,cfg),cost=labCostSensitivity(closes,dates,r,cfg),reg=labRegimeSummary(closes,dates,r,cfg);
   const positiveWF=wf.filter(x=>x.totalReturn>0).length,c2=cost.find(x=>x.mult===2)?.result,c3=cost.find(x=>x.mult===3)?.result;
   const robust=r.trades>=20&&oos&&oos.trades>=5&&(oos.profitFactor||0)>=1.05&&stab.score>=.55&&(wf.length?positiveWF/wf.length>=.5:false)&&c2&&c2.totalReturn>0;
-  rows.push({r,oos,stab,wf,positiveWF,c2,c3,reg,robust});await new Promise(resolve=>setTimeout(resolve,0));
+  rows.push({r,oos,stab,wf,positiveWF,c2,c3,reg,robust});
+  robustDone++;
+  updateLabProgress({robust:robustDone/Math.min(robustTotal,top.length)*100});
+  await new Promise(resolve=>setTimeout(resolve,0));
  }
+ updateLabProgress({robust:100});
  rows.sort((a,b)=>(Number(b.robust)-Number(a.robust))||(b.stab.score-a.stab.score)||((b.oos?.profitFactor||0)-(a.oos?.profitFactor||0)));
  const body=rows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.r.type].name+'</td><td>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.r.totalReturn.toFixed(2)+'%</td><td>'+(x.oos?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.oos?.profitFactor||0).toFixed(2)+'</td><td>'+Math.round(x.stab.score*100)+'%</td><td>'+x.positiveWF+'/'+x.wf.length+'</td><td>'+(x.c2?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.c3?.totalReturn||0).toFixed(2)+'%</td><td>'+Object.entries(x.reg).map(([k,v])=>k+': '+v.length+'T/'+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</td><td><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES VALIDATION')+'</b></td></tr>').join('');
  const profiles=rows.map((x,i)=>'<div class="box" style="margin-top:10px"><h4>CANDIDATE '+(i+1)+' · '+STRATEGY_LIBRARY[x.r.type].name+'</h4><div class="row"><span>Parameters</span><b>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</b></div><div class="row"><span>In-sample / OOS return</span><b>'+x.r.totalReturn.toFixed(2)+'% / '+(x.oos?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>OOS PF / trades</span><b>'+(x.oos?.profitFactor||0).toFixed(2)+' / '+(x.oos?.trades||0)+'</b></div><div class="row"><span>Parameter stability</span><b>'+Math.round(x.stab.score*100)+'% · '+x.stab.profitable+'/'+x.stab.total+' neighbours profitable</b></div><div class="row"><span>Walk-forward</span><b>'+x.positiveWF+'/'+x.wf.length+' positive windows</b></div><div class="row"><span>Cost sensitivity</span><b>2× '+(x.c2?.totalReturn||0).toFixed(2)+'% · 3× '+(x.c3?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>Regime returns</span><b>'+Object.entries(x.reg).map(([k,v])=>k+' '+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</b></div><div class="row"><span>Candidate status</span><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'</b></div></div>').join('');
