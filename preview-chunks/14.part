@@ -408,7 +408,7 @@ async function runBacktest(){
  const status=document.getElementById('backtestStatus'),runButton=document.querySelector('.backtest-controls .primary');
  if(runButton){runButton.disabled=true;runButton.textContent='RUNNING BACKTEST…';}
  status.textContent='LOADING';
- const results=document.getElementById('backtestResults'),tradesPanel=document.getElementById('btTrades');
+ const results=document.getElementById('backtestResults'),tradesPanel=document.getElementById('btTrades');if(results)results.classList.remove('mte-expanded-results');
  results.innerHTML='<div class="box"><h3>LOADING HISTORICAL DATA</h3><div class="sub">'+asset+' · committed MTE historical cache.</div></div>';
  tradesPanel.innerHTML='';const oldOptimisation=document.getElementById('optimisationResults');if(oldOptimisation)oldOptimisation.remove();
  try{
