@@ -400,7 +400,7 @@
     addExpandedUI();
     const asset=document.getElementById('btAsset')?.value||'QQQ',cfg=getBTConfig(),stage=document.getElementById('mteLabStage')?.value||'discovery';
     const selected=Array.from(document.querySelectorAll('.mte-strategy-check:checked')).map(x=>x.value);
-    const panel=document.getElementById('optimisationResults')||document.getElementById('backtestResults');
+    const panel=document.getElementById('optimisationResults')||document.getElementById('backtestResults');if(panel&&panel.id==='backtestResults')panel.classList.add('mte-expanded-results');
     const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
     if(!selected.length){alert('Select at least one expanded strategy.');return;}
     window.__mteLabProgress={discovery:0,deep:0,robust:0};
