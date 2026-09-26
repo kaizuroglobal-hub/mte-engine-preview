@@ -82,7 +82,7 @@ function labSignal(closes,i,type,p){
  if(type==='EMA_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>0?1:f<s&&m<0?-1:0}
  if(type==='RSI_MEAN_REVERSION'){const r=labRSI(x,p.period);if(r<=p.entry)return 1;if(r>=100-p.entry)return -1;return 0}
  if(type==='RSI_MOMENTUM'){const r=labRSI(x,p.period);return r>=p.threshold?1:r<=100-p.threshold?-1:0}
- if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+10,100)),m=labEMA(base,p.fast)-labEMA(base,p.slow),sig=labEMA([m],p.signal);return m>sig?1:m<sig?-1:0}
+ if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+20,100)),mh=[];for(let j=Math.max(p.slow,j=0);j<base.length;j++){const w=base.slice(0,j+1);mh.push(labEMA(w,p.fast)-labEMA(w,p.slow))}const m=mh[mh.length-1],sig=labEMA(mh,p.signal);return m>sig?1:m<sig?-1:0}
  if(type==='BREAKOUT'){const hi=Math.max(...x.slice(-p.lookback)),lo=Math.min(...x.slice(-p.lookback)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
  if(type==='DONCHIAN'){const hi=Math.max(...x.slice(-p.entry)),lo=Math.min(...x.slice(-p.entry)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
  if(type==='BOLLINGER_REVERSION'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z<=-p.z?1:z>=p.z?-1:0}
@@ -95,13 +95,13 @@ function labSignal(closes,i,type,p){
  return 0;
 }
 function labExit(closes,entryIndex,direction,model,p){
- const entry=closes[entryIndex],risk=Math.max(labATR(closes.slice(0,entryIndex+1),14),entry*0.005);
+ const entry=closes[entryIndex],risk=Math.max(labATR(closes.slice(0,entryIndex+1),14),entry*0.005),atrMult=p.atrMult||2.5;
  const horizon=p.horizon||40;
  let best=entry;
  for(let j=1;j<=horizon&&entryIndex+j<closes.length;j++){
   const idx=entryIndex+j,px=closes[idx],move=direction===1?(px/entry-1):(entry/px-1);
   if(model==='FIXED_2R'&&move>=2*risk/entry)return {idx,px,reason:'2R_TARGET'};
-  if(model==='ATR_TRAIL'){best=direction===1?Math.max(best,px):Math.min(best,px);const stop=direction===1?best-p.atrMult*risk:best+p.atrMult*risk;if((direction===1&&px<=stop)||(direction===-1&&px>=stop))return {idx,px,reason:'ATR_TRAIL'};}
+  if(model==='ATR_TRAIL'){best=direction===1?Math.max(best,px):Math.min(best,px);const stop=direction===1?best-atrMult*risk:best+atrMult*risk;if((direction===1&&px<=stop)||(direction===-1&&px>=stop))return {idx,px,reason:'ATR_TRAIL'};}
   if(model==='STRUCTURE'&&j>=3){const prev=closes[idx-1];if(direction===1&&px<prev&&prev<closes[idx-2])return {idx,px,reason:'STRUCTURE'};if(direction===-1&&px>prev&&prev>closes[idx-2])return {idx,px,reason:'STRUCTURE'};}
   if(model==='TIME'&&j>=horizon)return {idx,px,reason:'TIME'};
  }
@@ -175,17 +175,32 @@ async function runStrategyDiscovery(){
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
   const candidates=[];
-  for(const type of families){
-   if(!STRATEGY_LIBRARY[type]||type==='VWAP_REVERSION'||type==='VOLUME_BREAKOUT')continue;
-   const grids=labGrid(type,stage==='discovery'?'discovery':'deep');
+  const usableFamilies=families.filter(type=>STRATEGY_LIBRARY[type]&&type!=='VWAP_REVERSION'&&type!=='VOLUME_BREAKOUT');
+  const discoveryBest=[];
+  for(const type of usableFamilies){
+   const grids=labGrid(type,'discovery');
    for(const p of grids)for(const exit of exits){const r=labScenario(closes,dates,type,p,exit,cfg);if(labFilter(r,f))candidates.push({result:r})}
+   const familyRuns=candidates.filter(x=>x.result.type===type);
+   if(familyRuns.length){labRank(familyRuns,f.rankBy);discoveryBest.push(familyRuns[0])}
    await new Promise(resolve=>setTimeout(resolve,0));
   }
-  labRank(candidates,f.rankBy);
-  const top=candidates.slice(0,stage==='robust'?Math.max(f.topN,10):f.topN);
+  let finalCandidates=candidates;
+  if(stage==='deep'){
+   labRank(discoveryBest,f.rankBy);
+   const selectedTypes=discoveryBest.slice(0,Math.max(3,f.topN)).map(x=>x.result.type);
+   finalCandidates=[];
+   for(const type of selectedTypes){
+    const grids=labGrid(type,'deep');
+    for(const p of grids)for(const exit of exits){const r=labScenario(closes,dates,type,p,exit,cfg);if(labFilter(r,f))finalCandidates.push({result:r})}
+    await new Promise(resolve=>setTimeout(resolve,0));
+   }
+  }
+  labRank(finalCandidates,f.rankBy);
+  const top=finalCandidates.slice(0,stage==='robust'?Math.max(f.topN,10):f.topN);
   if(stage==='robust')return runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain);
-  const rows=top.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE '+(stage==='discovery'?'1 · DISCOVERY':'2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios passed</span><b>'+candidates.length.toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">All selected close-based strategy families were tested across their configured parameter grid. No standard RUN BACKTEST logic was changed.</div>';
+  const displayTop=stage==='discovery'?discoveryBest.slice(0,f.topN):top;
+  const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE '+(stage==='discovery'?'1 · DISCOVERY':'2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Discovery scenarios passed</span><b>'+candidates.length.toLocaleString()+'</b></div><div class="row"><span>Deep scenarios passed</span><b>'+finalCandidates.length.toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">'+(stage==='discovery'?'Stage 1 compares the best passing scenario from each selected strategy family. Stage 2 uses those discovery results to select strategy families for a deeper parameter search.':'Stage 2 deeply searches the parameter space of the strongest Stage 1 strategy families.')+' No standard RUN BACKTEST logic was changed.</div>';
   if(top[0]){const b=top[0].result;explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+b.totalReturn.toFixed(2)+'% return.'}
   status.textContent='LAB COMPLETE';
  }catch(e){panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+e.message+'</div>';explain.textContent='STRATEGY LAB FAILED · '+e.message;status.textContent='ERROR'}
