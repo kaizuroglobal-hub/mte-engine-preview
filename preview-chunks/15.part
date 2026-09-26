@@ -419,7 +419,7 @@
       done++;updateLabProgress({robust:done/top.length*100});await sleep(0);
     }
     updateLabProgress({robust:100});
-    rows.sort((a,b)=>(b.stable-a.stable)||(b.wfPos-b.wfPos)||((b.oos?.sharpe||0)-(a.oos?.sharpe||0)));
+    rows.sort((a,b)=>(b.stable-a.stable)||(b.wfPos-a.wfPos)||((b.oos?.sharpe||0)-(a.oos?.sharpe||0)));
     return rows;
   }
 
