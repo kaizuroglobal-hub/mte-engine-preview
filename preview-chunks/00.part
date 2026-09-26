@@ -114,17 +114,17 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   <div class="sub">The optimiser varies Technical 01 parameters while keeping the selected asset, dates, capital and trading costs fixed.</div>
   <div class="control-grid" style="margin-top:12px">
     <label><span>FAST MA MIN</span><input id="optFastMin" type="number" min="2" max="100" step="1" value="2"></label>
-    <label><span>FAST MA MAX</span><input id="optFastMax" type="number" min="2" max="100" step="1" value="20"></label>
+    <label><span>FAST MA MAX</span><input id="optFastMax" type="number" min="2" max="100" step="1" value="100"></label>
     <label><span>FAST MA STEP</span><input id="optFastStep" type="number" min="1" max="20" step="1" value="1"></label>
-    <label><span>SLOW MA MIN</span><input id="optSlowMin" type="number" min="3" max="250" step="1" value="10"></label>
-    <label><span>SLOW MA MAX</span><input id="optSlowMax" type="number" min="3" max="250" step="1" value="100"></label>
+    <label><span>SLOW MA MIN</span><input id="optSlowMin" type="number" min="3" max="250" step="1" value="3"></label>
+    <label><span>SLOW MA MAX</span><input id="optSlowMax" type="number" min="3" max="250" step="1" value="250"></label>
     <label><span>SLOW MA STEP</span><input id="optSlowStep" type="number" min="1" max="50" step="1" value="10"></label>
     <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
     <label><span>MIN TOTAL RETURN %</span><input id="optMinReturn" type="number" step="0.1" value="0"></label>
     <label><span>MIN PROFIT FACTOR</span><input id="optMinPF" type="number" min="0" step="0.05" value="0"></label>
     <label><span>MIN SHARPE</span><input id="optMinSharpe" type="number" step="0.1" value="0"></label>
     <label><span>MAX DRAWDOWN %</span><input id="optMaxDD" type="number" min="0" max="100" step="0.5" value="100"></label>
-    <label><span>MAX SCENARIOS</span><input id="optMaxScenarios" type="number" min="10" max="10000" step="10" value="3000"></label>
+    <label><span>MAX RESULTS DISPLAYED</span><input id="optMaxScenarios" type="number" min="10" max="10000" step="10" value="5000"></label>
     <label><span>RANK BY</span><select id="optRankBy"><option value="totalReturn">TOTAL RETURN</option><option value="sharpe">SHARPE</option><option value="profitFactor">PROFIT FACTOR</option><option value="maxDrawdown">LOWEST MAX DRAWDOWN</option><option value="averageReturn">AVERAGE RETURN / TRADE</option></select></label>
   </div>
   <div style="margin-top:12px"><span style="font-size:11px;font-weight:700;display:block;margin-bottom:7px">TIMEFRAME SCENARIOS</span>
