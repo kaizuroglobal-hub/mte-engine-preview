@@ -116,7 +116,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   </div>
 
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
-    <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · LAB TYPE</div>
+    <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH ENGINE</div>
     <div id="strategyLabPath" style="display:flex;gap:8px;flex-wrap:wrap">
       <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')">TECHNICAL STRATEGY LAB</button>
       <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')">EXPANDED MTE LAB</button>
@@ -143,7 +143,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
         <span style="font-size:10px;font-weight:800;padding:5px 8px;border:1px solid #cfd6de;border-radius:999px;background:#fff">STAGE 1 → 2 → 3</span>
       </div>
     </div>
-    <div style="font-size:11px;font-weight:800;margin-bottom:8px">RESEARCH FILTERS</div>
+    <div style="font-size:11px;font-weight:800;margin-bottom:8px">TECHNICAL RESEARCH CONTROLS</div>
     <div class="control-grid">
       <label style="display:none"><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
       <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
@@ -177,7 +177,7 @@ function setStrategyLabPath(path){
  window.__strategyLabPath=p;
  const tech=document.getElementById('technicalLabAdvanced');
  const expanded=document.getElementById('mteExpandedLab');
- if(tech)tech.style.display=p==='technical'?(tech.dataset.collapsed==='1'?'none':''):'none';
+ if(tech)tech.style.display=p==='technical'?'':'none';
  if(expanded)expanded.style.display=p==='expanded'?'':'none';
  document.querySelectorAll('[data-lab-path]').forEach(b=>{
   const active=b.getAttribute('data-lab-path')===p;
