@@ -480,6 +480,9 @@
   window.runStrategyLab=mteExpandedStrategyLab;
   window.optimiseBacktest=mteExpandedStrategyLab;
 
+  window.mteExpandedStrategyLab=mteExpandedStrategyLab;
+  window.addExpandedMteLabUI=addExpandedUI;
+
   function init(){
     addExpandedUI();
     const s=document.getElementById('mteUniverseStatus');
