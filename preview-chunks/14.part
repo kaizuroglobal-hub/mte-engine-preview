@@ -140,31 +140,56 @@ function readOptimiserFilters(){
   exits:checked('.opt-exit')
  };
 }
-function optimiseTechnicalMatrix(closes,dates,cfg,filters){
- const scenarios=[];
+async function optimiseTechnicalMatrix(closes,dates,cfg,filters){
+ const passing=[];
+ let tested=0,passingCount=0,pairCount=0;
+ const timeframes=filters.timeframes.length?filters.timeframes:['4H context · 1H management · 15M execution'];
+ const exits=filters.exits.length?filters.exits:['STRUCTURE_1H'];
+ const prefix=new Array(closes.length+1).fill(0);
+ for(let i=0;i<closes.length;i++)prefix[i+1]=prefix[i]+closes[i];
+ const runFast=async(fast,slow)=>{
+  const trades=[];let prev=null,entryIndex=-1,entryPrice=0;
+  for(let i=slow;i<closes.length;i++){
+   const fastM=(prefix[i]-prefix[i-fast])/fast,slowM=(prefix[i]-prefix[i-slow])/slow;
+   const dir=fastM>slowM?'LONG':'SHORT';
+   if(prev===null){prev=dir;entryIndex=i;entryPrice=closes[i];continue;}
+   if(dir!==prev){
+    const gross=prev==='LONG'?pctJS(closes[i],entryPrice):pctJS(entryPrice,closes[i]),ret=gross-btCostPct(cfg);
+    trades.push({direction:prev,ret,bars:i-entryIndex,reason:'TREND_FLIP',entryDate:dates[entryIndex],exitDate:dates[i],entryPrice,exitPrice:closes[i]});
+    prev=dir;entryIndex=i;entryPrice=closes[i];
+   }
+  }
+  if(prev&&entryIndex>=0){
+   const last=closes.length-1,gross=prev==='LONG'?pctJS(closes[last],entryPrice):pctJS(entryPrice,closes[last]),ret=gross-btCostPct(cfg);
+   trades.push({direction:prev,ret,bars:last-entryIndex,reason:'OPEN_AT_END',entryDate:dates[entryIndex],exitDate:dates[last],entryPrice,exitPrice:closes[last]});
+  }
+  return summariseTrades('',trades,closes.length,'TECHNICAL 01 · Strategy 002',cfg,dates);
+ };
  for(let fast=filters.fastMin;fast<=filters.fastMax;fast+=filters.fastStep){
   for(let slow=filters.slowMin;slow<=filters.slowMax;slow+=filters.slowStep){
    if(fast>=slow)continue;
-   for(const timeframe of filters.timeframes.length?filters.timeframes:['4H context · 1H management · 15M execution']){
-    for(const exit of filters.exits.length?filters.exits:['STRUCTURE_1H']){
-     const r=technicalRun(closes,dates,fast,slow,cfg);
-     if(!r)continue;
-     if(r.trades<filters.minTrades||r.totalReturn<filters.minReturn||r.profitFactor<filters.minPF||r.sharpe<filters.minSharpe||r.maxDrawdown>filters.maxDD)continue;
-     scenarios.push({fast,slow,timeframe,exit,result:r});
-     if(scenarios.length>=filters.maxScenarios)break;
+   pairCount++;
+   const r=await runFast(fast,slow);
+   if(!r)continue;
+   let passes=r.trades>=filters.minTrades&&r.totalReturn>=filters.minReturn&&r.profitFactor>=filters.minPF&&r.sharpe>=filters.minSharpe&&r.maxDrawdown<=filters.maxDD;
+   for(const timeframe of timeframes){
+    for(const exit of exits){
+     tested++;
+     if(passes){
+      passingCount++;
+      passing.push({fast,slow,timeframe,exit,result:r});
+     }
     }
-    if(scenarios.length>=filters.maxScenarios)break;
    }
-   if(scenarios.length>=filters.maxScenarios)break;
+   if(pairCount%100===0)await new Promise(resolve=>setTimeout(resolve,0));
   }
-  if(scenarios.length>=filters.maxScenarios)break;
  }
  const metric=filters.rankBy;
- scenarios.sort((a,b)=>{
+ passing.sort((a,b)=>{
   const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];
   return metric==='maxDrawdown'?av-bv:bv-av;
  });
- return {scenarios,filters};
+ return {scenarios:passing,tested,passingCount,pairCount,filters};
 }
 async function optimiseBacktest(){
  const strategyEl=document.getElementById('btStrategy'),status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
