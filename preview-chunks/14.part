@@ -52,6 +52,176 @@ function summariseTrades(symbol,trades,bars,strategy,cfg,dates){
  const sharpe=sd?avgD/sd*Math.sqrt(252):0;
  return {symbol,strategy,bars,trades:rs.length,winRate:rs.length?wins.length/rs.length*100:0,averageReturn:rs.length?rs.reduce((a,x)=>a+x,0)/rs.length:0,totalReturn:(equity/cfg.capital-1)*100,pnl:equity-cfg.capital,endingCapital:equity,profitFactor:grossLoss?grossWin/grossLoss:0,maxDrawdown:dd,averageHold:rs.length?trades.reduce((a,t)=>a+t.bars,0)/rs.length:0,best:rs.length?Math.max(...rs):0,worst:rs.length?Math.min(...rs):0,sharpe,tradeList:trades,startDate:dates?.[0]||'',endDate:dates?.[dates.length-1]||'',costPct:btCostPct(cfg)};
 }
+
+const STRATEGY_LIBRARY={
+ MA_CROSSOVER:{name:'MA Crossover',desc:'Simple moving-average trend crossover',params:'fast/slow'},
+ EMA_MOMENTUM:{name:'EMA Momentum',desc:'EMA trend alignment plus momentum confirmation',params:'fast/slow/momentum'},
+ RSI_MEAN_REVERSION:{name:'RSI Mean Reversion',desc:'Oversold/overbought reversal',params:'period/entry/exit'},
+ RSI_MOMENTUM:{name:'RSI Momentum',desc:'RSI threshold momentum',params:'period/threshold'},
+ MACD:{name:'MACD',desc:'MACD line versus signal line',params:'fast/slow/signal'},
+ BREAKOUT:{name:'Breakout',desc:'N-bar price breakout',params:'lookback'},
+ DONCHIAN:{name:'Donchian Breakout',desc:'Channel breakout with separate exit channel',params:'entry/exit'},
+ BOLLINGER_REVERSION:{name:'Bollinger Mean Reversion',desc:'Band excursion and reversion',params:'period/z'},
+ BOLLINGER_BREAKOUT:{name:'Bollinger Breakout',desc:'Band expansion breakout',params:'period/z'},
+ ATR_BREAKOUT:{name:'ATR Breakout',desc:'Price expansion relative to ATR',params:'lookback/atrMult'},
+ MOMENTUM:{name:'Momentum',desc:'N-bar rate-of-change momentum',params:'lookback/threshold'},
+ TREND_MOMENTUM:{name:'Trend + Momentum',desc:'Trend filter plus momentum confirmation',params:'fast/slow/momentum'},
+ TREND_VOLATILITY:{name:'Trend + Volatility',desc:'Trend plus ATR regime filter',params:'fast/slow/atrPeriod/atrMult'},
+ MULTI_FACTOR:{name:'Multi-Factor',desc:'Trend + momentum + RSI confirmation',params:'fast/slow/momentum/rsi'},
+ VWAP_REVERSION:{name:'VWAP Reversion',desc:'Unavailable until intraday OHLCV cache is present',params:'intraday only'},
+ VOLUME_BREAKOUT:{name:'Volume Breakout',desc:'Unavailable until volume cache is present',params:'volume required'}
+};
+function labMean(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0}
+function labEMA(a,p){if(!a.length)return 0;const k=2/(p+1);let e=a[0];for(let i=1;i<a.length;i++)e=a[i]*k+e*(1-k);return e}
+function labRSI(a,p){if(a.length<=p)return 50;let g=0,l=0;for(let i=a.length-p;i<a.length;i++){const d=a[i]-a[i-1];if(d>0)g+=d;else l-=d}if(l===0)return 100;const rs=(g/p)/(l/p);return 100-(100/(1+rs))}
+function labATR(a,p){if(a.length<=p)return 0;let s=0;for(let i=a.length-p+1;i<a.length;i++)s+=Math.abs(a[i]-a[i-1]);return s/(p-1)}
+function labStd(a){if(a.length<2)return 0;const m=labMean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/a.length)}
+function labSignal(closes,i,type,p){
+ const x=closes.slice(0,i);
+ if(type==='MA_CROSSOVER'){const f=labMean(x.slice(-p.fast)),s=labMean(x.slice(-p.slow));return f>s?1:-1}
+ if(type==='EMA_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>0?1:f<s&&m<0?-1:0}
+ if(type==='RSI_MEAN_REVERSION'){const r=labRSI(x,p.period);if(r<=p.entry)return 1;if(r>=100-p.entry)return -1;return 0}
+ if(type==='RSI_MOMENTUM'){const r=labRSI(x,p.period);return r>=p.threshold?1:r<=100-p.threshold?-1:0}
+ if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+10,100)),m=labEMA(base,p.fast)-labEMA(base,p.slow),sig=labEMA([m],p.signal);return m>sig?1:m<sig?-1:0}
+ if(type==='BREAKOUT'){const hi=Math.max(...x.slice(-p.lookback)),lo=Math.min(...x.slice(-p.lookback)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
+ if(type==='DONCHIAN'){const hi=Math.max(...x.slice(-p.entry)),lo=Math.min(...x.slice(-p.entry)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
+ if(type==='BOLLINGER_REVERSION'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z<=-p.z?1:z>=p.z?-1:0}
+ if(type==='BOLLINGER_BREAKOUT'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z>=p.z?1:z<=-p.z?-1:0}
+ if(type==='ATR_BREAKOUT'){const atr=labATR(x,p.lookback),move=x[x.length-1]-x[x.length-2];return atr&&move>atr*p.atrMult?1:atr&&move<-atr*p.atrMult?-1:0}
+ if(type==='MOMENTUM'){const m=x.length>p.lookback?x[x.length-1]/x[x.length-1-p.lookback]-1:0;return m>p.threshold?1:m<-p.threshold?-1:0}
+ if(type==='TREND_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,100)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>p.threshold?1:f<s&&m<-p.threshold?-1:0}
+ if(type==='TREND_VOLATILITY'){const f=labEMA(x.slice(-Math.max(p.slow,p.atrPeriod,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.atrPeriod,100)),p.slow),atr=labATR(x,p.atrPeriod),base=labMean(x.slice(-p.atrPeriod));if(!atr||!base)return 0;const ratio=atr/base;return ratio>=p.atrMult?(f>s?1:f<s?-1:0):0}
+ if(type==='MULTI_FACTOR'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,p.rsi,100)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,p.rsi,100)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0,r=labRSI(x,p.rsi);return f>s&&m>0&&r>=50?1:f<s&&m<0&&r<50?-1:0}
+ return 0;
+}
+function labExit(closes,entryIndex,direction,model,p){
+ const entry=closes[entryIndex],risk=Math.max(labATR(closes.slice(0,entryIndex+1),14),entry*0.005);
+ const horizon=p.horizon||40;
+ let best=entry;
+ for(let j=1;j<=horizon&&entryIndex+j<closes.length;j++){
+  const idx=entryIndex+j,px=closes[idx],move=direction===1?(px/entry-1):(entry/px-1);
+  if(model==='FIXED_2R'&&move>=2*risk/entry)return {idx,px,reason:'2R_TARGET'};
+  if(model==='ATR_TRAIL'){best=direction===1?Math.max(best,px):Math.min(best,px);const stop=direction===1?best-p.atrMult*risk:best+p.atrMult*risk;if((direction===1&&px<=stop)||(direction===-1&&px>=stop))return {idx,px,reason:'ATR_TRAIL'};}
+  if(model==='STRUCTURE'&&j>=3){const prev=closes[idx-1];if(direction===1&&px<prev&&prev<closes[idx-2])return {idx,px,reason:'STRUCTURE'};if(direction===-1&&px>prev&&prev>closes[idx-2])return {idx,px,reason:'STRUCTURE'};}
+  if(model==='TIME'&&j>=horizon)return {idx,px,reason:'TIME'};
+ }
+ const idx=Math.min(closes.length-1,entryIndex+horizon);return {idx,px:closes[idx],reason:'OPEN_AT_END'};
+}
+function labScenario(closes,dates,type,p,exitModel,cfg){
+ const trades=[];let side=0,entryIndex=-1,entryPrice=0;
+ const warm=Math.max(30,p.slow||0,p.lookback||0,p.period||0,p.atrPeriod||0,p.entry||0);
+ for(let i=warm;i<closes.length;i++){
+  const sig=labSignal(closes,i,type,p);
+  if(side===0&&sig!==0){side=sig;entryIndex=i;entryPrice=closes[i];continue}
+  if(side!==0&&(sig===-side||(type==='RSI_MEAN_REVERSION'&&sig===0))){
+   const ex=labExit(closes,entryIndex,exitModel,p),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px),ret=gross-btCostPct(cfg);
+   trades.push({direction:side===1?'LONG':'SHORT',ret,bars:ex.idx-entryIndex,reason:ex.reason,entryDate:dates[entryIndex],exitDate:dates[ex.idx],entryPrice,exitPrice:ex.px});
+   side=0;entryIndex=-1;
+   if(sig!==0){side=sig;entryIndex=i;entryPrice=closes[i]}
+  }
+ }
+ if(side!==0&&entryIndex>=0){const ex=labExit(closes,entryIndex,side,'TIME',{horizon:Math.min(40,closes.length-entryIndex-1),atrMult:2.5}),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px);trades.push({direction:side===1?'LONG':'SHORT',ret:gross-btCostPct(cfg),bars:ex.idx-entryIndex,reason:'END_OF_TEST',entryDate:dates[entryIndex],exitDate:dates[ex.idx],entryPrice,exitPrice:ex.px})}
+ const r=summariseTrades('',trades,closes.length,'TECHNICAL LAB · '+STRATEGY_LIBRARY[type].name,cfg,dates);
+ return r?{...r,type,params:p,exitModel}:null;
+}
+function labGrid(type,stage){
+ const coarse={
+  MA_CROSSOVER:{fast:[3,5,10,20],slow:[20,50,100]},
+  EMA_MOMENTUM:{fast:[5,10,20],slow:[20,50,100],momentum:[5,10,20]},
+  RSI_MEAN_REVERSION:{period:[7,14,21],entry:[20,25,30]},
+  RSI_MOMENTUM:{period:[7,14,21],threshold:[50,55,60]},
+  MACD:{fast:[8,12,16],slow:[21,26,34],signal:[5,9]},
+  BREAKOUT:{lookback:[10,20,40,60,100]},
+  DONCHIAN:{entry:[20,40,55,100]},
+  BOLLINGER_REVERSION:{period:[10,20,30],z:[1.5,2,2.5]},
+  BOLLINGER_BREAKOUT:{period:[10,20,30],z:[1.5,2,2.5]},
+  ATR_BREAKOUT:{lookback:[10,14,20],atrMult:[0.75,1,1.5,2]},
+  MOMENTUM:{lookback:[5,10,20,40,60],threshold:[0.01,0.02,0.03]},
+  TREND_MOMENTUM:{fast:[5,10,20],slow:[30,50,100],momentum:[5,10,20],threshold:[0,0.01,0.02]},
+  TREND_VOLATILITY:{fast:[10,20],slow:[50,100],atrPeriod:[14,20],atrMult:[0.005,0.01,0.02]},
+  MULTI_FACTOR:{fast:[5,10,20],slow:[30,50,100],momentum:[5,10,20],rsi:[7,14,21]}
+ };
+ const deep={
+  MA_CROSSOVER:{fast:[2,3,4,5,6,8,10,12,15,20,25,30],slow:[20,30,40,50,60,75,100,125,150,200]},
+  EMA_MOMENTUM:{fast:[3,5,8,10,15,20,25],slow:[20,30,40,50,75,100,150],momentum:[3,5,8,10,15,20,30]},
+  RSI_MEAN_REVERSION:{period:[5,7,9,14,21,28],entry:[15,20,25,30,35,40]},
+  RSI_MOMENTUM:{period:[5,7,9,14,21,28],threshold:[50,52,55,58,60,65]},
+  MACD:{fast:[5,8,10,12,16,20],slow:[20,21,26,30,34,40,50],signal:[3,5,7,9,12]},
+  BREAKOUT:{lookback:[5,10,15,20,30,40,55,75,100,150,200]},
+  DONCHIAN:{entry:[10,15,20,30,40,55,75,100,150,200]},
+  BOLLINGER_REVERSION:{period:[10,15,20,25,30,40,50],z:[1,1.25,1.5,1.75,2,2.25,2.5]},
+  BOLLINGER_BREAKOUT:{period:[10,15,20,25,30,40,50],z:[1,1.25,1.5,1.75,2,2.25,2.5]},
+  ATR_BREAKOUT:{lookback:[5,7,10,14,20,30,40],atrMult:[0.5,0.75,1,1.25,1.5,2,2.5,3]},
+  MOMENTUM:{lookback:[3,5,8,10,15,20,30,40,60,90,120],threshold:[0,0.005,0.01,0.02,0.03,0.05]},
+  TREND_MOMENTUM:{fast:[3,5,8,10,15,20,25],slow:[20,30,40,50,75,100,150,200],momentum:[3,5,8,10,15,20,30,40],threshold:[0,0.005,0.01,0.02,0.03]},
+  TREND_VOLATILITY:{fast:[5,10,15,20,30],slow:[30,50,75,100,150,200],atrPeriod:[7,10,14,20,30],atrMult:[0.0025,0.005,0.0075,0.01,0.015,0.02]},
+  MULTI_FACTOR:{fast:[3,5,8,10,15,20],slow:[30,40,50,75,100,150],momentum:[3,5,8,10,15,20,30],rsi:[5,7,9,14,21,28]}
+ };
+ const g=stage==='deep'?deep[type]:coarse[type];if(!g)return[];
+ const keys=Object.keys(g),out=[];
+ const walk=(i,o)=>{if(i===keys.length){if(o.fast&&o.slow&&o.fast>=o.slow)return;out.push({...o});return}for(const v of g[keys[i]])walk(i+1,{...o,[keys[i]]:v})};
+ walk(0,{});
+ return out;
+}
+function labFilter(r,f){return r&&r.trades>=f.minTrades&&r.totalReturn>=f.minReturn&&r.profitFactor>=f.minPF&&r.sharpe>=f.minSharpe&&r.maxDrawdown<=f.maxDD}
+function labRank(arr,metric){return arr.sort((a,b)=>{const av=metric==='maxDrawdown'?a.result.maxDrawdown:a.result[metric],bv=metric==='maxDrawdown'?b.result.maxDrawdown:b.result[metric];return metric==='maxDrawdown'?av-bv:bv-av})}
+async function runStrategyDiscovery(){
+ const asset=document.getElementById('btAsset').value,cfg=getBTConfig(),stage=document.getElementById('labStage').value;
+ const f={minTrades:Math.max(0,Number(document.getElementById('optMinTrades').value)||0),minReturn:Number(document.getElementById('optMinReturn').value)||0,minPF:Number(document.getElementById('optMinPF').value)||0,minSharpe:Number(document.getElementById('optMinSharpe').value)||0,maxDD:Number(document.getElementById('optMaxDD').value)||100,rankBy:document.getElementById('optRankBy').value,topN:Math.max(1,Number(document.getElementById('labTopN').value)||10)};
+ const families=Array.from(document.querySelectorAll('.lab-family:checked')).map(x=>x.value),exits=Array.from(document.querySelectorAll('.lab-exit:checked')).map(x=>x.value);
+ let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
+ const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Loading committed historical cache for '+asset+'…</div>';
+ try{
+  const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
+  if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
+  const candidates=[];
+  for(const type of families){
+   if(!STRATEGY_LIBRARY[type]||type==='VWAP_REVERSION'||type==='VOLUME_BREAKOUT')continue;
+   const grids=labGrid(type,stage==='discovery'?'discovery':'deep');
+   for(const p of grids)for(const exit of exits){const r=labScenario(closes,dates,type,p,exit,cfg);if(labFilter(r,f))candidates.push({result:r})}
+   await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  labRank(candidates,f.rankBy);
+  const top=candidates.slice(0,stage==='robust'?Math.max(f.topN,10):f.topN);
+  if(stage==='robust')return runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain);
+  const rows=top.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td>'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE '+(stage==='discovery'?'1 · DISCOVERY':'2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios passed</span><b>'+candidates.length.toLocaleString()+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">All selected close-based strategy families were tested across their configured parameter grid. No standard RUN BACKTEST logic was changed.</div>';
+  if(top[0]){const b=top[0].result;explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+b.totalReturn.toFixed(2)+'% return.'}
+  status.textContent='LAB COMPLETE';
+ }catch(e){panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+e.message+'</div>';explain.textContent='STRATEGY LAB FAILED · '+e.message;status.textContent='ERROR'}
+}
+async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,explain){
+ const rows=[];
+ for(const c of top.slice(0,Math.max(3,f.topN))){
+  const r=c.result,near=[];
+  const keys=Object.keys(r.params);
+  for(const k of keys){
+   const v=Number(r.params[k]);if(!Number.isFinite(v)||v<=1)continue;
+   for(const delta of [-1,1]){const p={...r.params,[k]:v+delta};if(p.fast&&p.slow&&p.fast>=p.slow)continue;const rr=labScenario(closes,dates,r.type,p,r.exitModel,cfg);if(rr)near.push(rr.totalReturn)}
+  }
+  const mean=near.length?near.reduce((a,x)=>a+x,0)/near.length:0;
+  const sd=near.length>1?Math.sqrt(near.reduce((a,x)=>a+(x-mean)*(x-mean),0)/(near.length-1)):0;
+  const windows=[];
+  const n=closes.length,w=Math.max(120,Math.floor(n*.5));
+  for(let s=0;s+w<=n;s+=Math.max(20,Math.floor((n-w)/4)||20)){const rr=labScenario(closes.slice(s,s+w),dates.slice(s,s+w),r.type,r.params,r.exitModel,cfg);if(rr)windows.push(rr.totalReturn)}
+  const positive=windows.filter(x=>x>0).length;
+  rows.push({r,mean,sd,stability:sd?Math.max(0,1-sd/(Math.abs(r.totalReturn)+1)):0,windows,positive});
+  await new Promise(resolve=>setTimeout(resolve,0));
+ }
+ rows.sort((a,b)=>b.stability-a.stability);
+ const html=rows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.r.type].name+'</td><td>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.r.exitModel+'</td><td>'+x.r.totalReturn.toFixed(2)+'%</td><td>'+x.mean.toFixed(2)+'%</td><td>'+x.sd.toFixed(2)+'</td><td>'+Math.round(x.stability*100)+'%</td><td>'+x.positive+'/'+x.windows.length+'</td><td>'+x.r.maxDrawdown.toFixed(2)+'%</td></tr>').join('');
+ panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS</h3><div class="row"><span>Robustness candidates</span><b>'+rows.length+'</b></div><div class="sub" style="margin:10px 0">Parameter stability tests ±1 around numeric parameters. Rolling windows use contiguous historical slices. Positive windows shows how many tested windows finished above zero.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>BASE RETURN</th><th>NEIGHBOUR AVG</th><th>NEIGHBOUR SD</th><th>STABILITY</th><th>POSITIVE WINDOWS</th><th>MAX DD</th></tr></thead><tbody>'+html+'</tbody></table></div><div class="sub" style="margin-top:10px">Robustness is diagnostic, not a guarantee of future performance. The existing standard backtest remains untouched.</div>';
+ if(rows[0])explain.innerHTML='<b>ROBUSTNESS COMPLETE</b><br>'+STRATEGY_LIBRARY[rows[0].r.type].name+' ranked highest on the displayed parameter-stability measure.';
+ status.textContent='ROBUSTNESS COMPLETE';
+}
+function initStrategyLabFamilies(){
+ const box=document.getElementById('strategyFamilyChecks');if(!box||box.dataset.ready)return;
+ const usable=Object.keys(STRATEGY_LIBRARY).filter(x=>x!=='VWAP_REVERSION'&&x!=='VOLUME_BREAKOUT');
+ box.innerHTML=usable.map(x=>'<label style="display:flex;align-items:center;gap:7px;font-size:11px"><input type="checkbox" class="lab-family" value="'+x+'" checked> '+STRATEGY_LIBRARY[x].name+'</label>').join('');
+ box.dataset.ready='1';
+}
+initStrategyLabFamilies();
+
 function technicalRun(closes,dates,fast,slow,cfg){
  if(fast>=slow||closes.length<slow+5)return null;
  const trades=[];let prev=null,entryIndex=-1,entryPrice=0;
@@ -191,36 +361,8 @@ async function optimiseTechnicalMatrix(closes,dates,cfg,filters){
  });
  return {scenarios:passing,tested,passingCount,pairCount,filters};
 }
-async function optimiseBacktest(){
- const strategyEl=document.getElementById('btStrategy'),status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
- strategyEl.value='technical';
- const asset=document.getElementById('btAsset').value,cfg=getBTConfig(),filters=readOptimiserFilters();
- status.textContent='OPTIMISING';
- explain.innerHTML='<b>TECHNICAL 01 OPTIMISATION RUNNING</b><br>Testing the selected MA, timeframe and exit-model scenario matrix against the full selected historical window.';
- let panel=document.getElementById('optimisationResults');
- if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'));}
- try{
-  const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
-  if(closes.length<120)throw new Error('At least 120 observations are required for optimisation.');
-  if(!filters.timeframes.length||!filters.exits.length)throw new Error('Select at least one timeframe and one exit model.');
-  const opt=await optimiseTechnicalMatrix(closes,dates,cfg,filters);
-  if(!opt.scenarios.length)throw new Error('No scenarios passed the selected performance filters.');
-  const top=opt.scenarios.slice(0,Math.min(100,filters.maxScenarios)).map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+s.fast+'</td><td>'+s.slow+'</td><td>'+s.timeframe.split(' context')[0]+'</td><td>'+s.exit+'</td><td>'+s.result.trades+'</td><td>'+(s.result.totalReturn>=0?'+':'')+s.result.totalReturn.toFixed(2)+'%</td><td>$'+s.result.pnl.toFixed(2)+'</td><td>'+s.result.profitFactor.toFixed(2)+'</td><td>'+s.result.sharpe.toFixed(2)+'</td><td>'+s.result.maxDrawdown.toFixed(2)+'%</td><td>'+s.result.winRate.toFixed(1)+'%</td><td>'+s.result.averageReturn.toFixed(2)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL 01 · OPTIMISATION MATRIX</h3>'+
-   '<div class="row"><span>Asset / test window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div>'+
-   '<div class="row"><span>Scenarios tested / passed</span><b>'+opt.tested.toLocaleString()+' / '+opt.passingCount.toLocaleString()+'</b></div>'+
-   '<div class="row"><span>Ranking</span><b>'+filters.rankBy.replace(/([A-Z])/g,' $1').toUpperCase()+'</b></div>'+
-   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>FAST</th><th>SLOW</th><th>TIMEFRAME</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>P&amp;L</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th><th>AVG / TRADE</th></tr></thead><tbody>'+top+'</tbody></table></div>'+
-   '<div class="sub" style="margin-top:10px">Showing the top 100 passing scenarios. The search itself was exhaustive across the configured parameter ranges. The standard RUN BACKTEST engine and its existing result fields were not modified.</div>';
-  const best=opt.scenarios[0];
-  explain.innerHTML='<b>OPTIMISATION COMPLETE</b><br>Top scenario by <b>'+filters.rankBy+'</b>: FAST '+best.fast+' / SLOW '+best.slow+' · '+best.timeframe+' · '+best.exit+'.';
-  status.textContent='OPTIMISED';
- }catch(e){
-  panel.innerHTML='<h3>OPTIMISATION FAILED</h3><div class="sub">'+e.message+'</div>';
-  explain.textContent='OPTIMISATION FAILED · '+e.message;
-  status.textContent='ERROR';
- }
-}
+async function optimiseBacktest(){return runStrategyLab();}
+async function runStrategyLab(){const el=document.getElementById('labStage');if(el&&el.value==='robust'){return runStrategyDiscovery()}return runStrategyDiscovery();}
 function setBTDates(){
  const el=document.getElementById('btAsset'); if(!el||!document.getElementById('btStart'))return;
  fetchYahooHistory(el.value).then(rows=>{if(!rows.length)return;const first=rows[0].date,last=rows[rows.length-1].date;const s=document.getElementById('btStart'),e=document.getElementById('btEnd');s.min=first;s.max=last;e.min=first;e.max=last;if(!s.value)s.value=first;if(!e.value)e.value=last;});
