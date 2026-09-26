@@ -110,7 +110,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   <div class="actions" style="margin-top:14px"><button class="primary" onclick="runBacktest()">RUN BACKTEST</button><button onclick="optimiseBacktest()">OPTIMISE TECHNICAL</button><button onclick="selectNextAsset()">NEXT ASSET</button></div>
  </div>
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
-  <h3>TECHNICAL OPTIMISATION FILTERS</h3>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h3 style="margin:0">TECHNICAL OPTIMISATION FILTERS</h3><button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" style="min-width:110px">HIDE FILTERS ▾</button></div>
   <div class="sub">The optimiser varies Technical 01 parameters while keeping the selected asset, dates, capital and trading costs fixed.</div>
   <div class="control-grid" style="margin-top:12px">
     <label><span>FAST MA MIN</span><input id="optFastMin" type="number" min="2" max="100" step="1" value="2"></label>
@@ -135,7 +135,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
     <label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="STRUCTURE_1H" checked> STRUCTURE_1H</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="FIXED_2R" checked> FIXED_2R</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ATR_2_5" checked> ATR_2_5</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ATR_3_0" checked> ATR_3_0</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="HYBRID" checked> HYBRID</label><label style="display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:11px;margin-bottom:7px"><input type="checkbox" class="opt-exit" value="ADAPTIVE" checked> ADAPTIVE</label>
   </div>
   <div class="sub" style="margin-top:10px">Note: the current Technical 01 calculation is MA-driven. Timeframe and exit selections are retained as scenario dimensions, but they do not currently change the Technical 01 calculation on the committed daily historical cache.</div>
-</div><div class="detail-grid" id="backtestResults"></div>
+</div><script>function toggleTechnicalOptimiserFilters(){const box=document.getElementById("technicalOptimiserControls"),btn=document.getElementById("technicalOptimiserToggle");if(!box||!btn)return;const hidden=box.dataset.collapsed==="1";Array.from(box.children).slice(1).forEach(el=>el.style.display=hidden?"":"none");box.dataset.collapsed=hidden?"0":"1";btn.textContent=hidden?"HIDE FILTERS ▾":"SHOW FILTERS ▸";}</script><div class="detail-grid" id="backtestResults"></div>
  <div id="btTrades"></div>
  <div class="box" style="margin-top:15px"><h3>STRATEGY / ASSET TESTING</h3><div class="sub" id="btExplanation">Select any asset and strategy above. The paper engine can test the same asset across Macro 01, Technical 01 and later Weighted 01 without changing the asset universe.</div></div>
  </section>
