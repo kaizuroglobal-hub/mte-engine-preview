@@ -111,15 +111,15 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
  </div>
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">One workflow for Technical and Expanded MTE research. Select the research path, move through the three stages, then run the current stage.</div></div>
+    <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">This is the research and optimisation layer below the normal trading/backtesting controls. The strategy selected above remains separate.</div></div>
     <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle advanced Strategy Lab settings" title="Toggle advanced settings">⌄</button>
   </div>
 
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
-    <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH PATH</div>
+    <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · LAB TYPE</div>
     <div id="strategyLabPath" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')">TECHNICAL</button>
-      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')">EXPANDED MTE</button>
+      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')">TECHNICAL STRATEGY LAB</button>
+      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')">EXPANDED MTE LAB</button>
     </div>
 
     <div style="font-size:11px;font-weight:800;margin:15px 0 8px">STEP 2 · RESEARCH STAGE</div>
@@ -187,7 +187,7 @@ function setStrategyLabStage(stage,scroll){
   b.style.borderColor=active?'#1f2937':'#cfd6de';
  });
  const path=window.__strategyLabPath||'technical';
- const pathLabel=path==='expanded'?'Expanded MTE':'Technical';
+ const pathLabel=path==='expanded'?'Expanded MTE Lab':'Technical Strategy Lab';
  const stageLabel=s==='discovery'?'Stage 1 · Discovery':s==='deep'?'Stage 2 · Deep Optimisation':'Stage 3 · Robustness & Validation';
  const run=document.getElementById('strategyLabRun');
  if(run)run.textContent='RUN '+stageLabel.toUpperCase();
