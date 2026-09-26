@@ -133,7 +133,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
     <button type="button" id="strategyLabRun" class="primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%;padding:11px">RUN STAGE 1 · DISCOVERY</button>
   </div>
 
-  <div id="technicalLabAdvanced" style="margin-top:12px">
+  <div id="technicalLabAdvanced" data-collapsed="1" style="margin-top:12px;display:none">
     <div style="font-size:11px;font-weight:800;margin-bottom:8px">ADVANCED TECHNICAL SETTINGS</div>
     <div class="control-grid">
       <label style="display:none"><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
@@ -165,7 +165,7 @@ function setStrategyLabPath(path){
  window.__strategyLabPath=p;
  const tech=document.getElementById('technicalLabAdvanced');
  const expanded=document.getElementById('mteExpandedLab');
- if(tech)tech.style.display=p==='technical'?'':'none';
+ if(tech)tech.style.display=p==='technical'?(tech.dataset.collapsed==='1'?'none':''):'none';
  if(expanded)expanded.style.display=p==='expanded'?'':'none';
  document.querySelectorAll('[data-lab-path]').forEach(b=>{
   const active=b.getAttribute('data-lab-path')===p;
