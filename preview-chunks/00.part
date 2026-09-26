@@ -175,13 +175,14 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 function setStrategyLabPath(path){
  const p=path==='expanded'?'expanded':'technical';
  window.__strategyLabPath=p;
+ if(p==='expanded' && typeof addExpandedUI==='function' && !document.getElementById('mteExpandedLab')) addExpandedUI();
  const tech=document.getElementById('technicalLabAdvanced');
  const expanded=document.getElementById('mteExpandedLab');
  if(tech)tech.style.display=p==='technical'?'':'none';
  if(expanded)expanded.style.display=p==='expanded'?'':'none';
  document.querySelectorAll('[data-lab-path]').forEach(b=>{
   const active=b.getAttribute('data-lab-path')===p;
-  b.className=active?'primary':'secondary';
+  b.className=(active?'primary':'secondary')+' lab-choice';
   b.setAttribute('aria-pressed',active?'true':'false');
   b.dataset.selected=active?'1':'0';
   b.style.fontWeight='800';
@@ -191,8 +192,7 @@ function setStrategyLabPath(path){
  });
  const stage=document.getElementById('strategyLabStage')?.value||document.getElementById('labStage')?.value||'discovery';
  setStrategyLabStage(stage,false);
-}
-function setStrategyLabStage(stage,scroll){
+}function setStrategyLabStage(stage,scroll){
  const s=['discovery','deep','robust'].includes(stage)?stage:'discovery';
  window.__strategyLabStage=s;
  const technical=document.getElementById('labStage'),expanded=document.getElementById('mteLabStage');
