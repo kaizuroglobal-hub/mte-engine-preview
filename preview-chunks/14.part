@@ -269,6 +269,7 @@ async function runStrategyDiscovery(){
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
  initLabProgress('technical|'+asset);
+ if(stage==='discovery'){window.__mteLabProgress.deep=0;window.__mteLabProgress.robust=0;} else if(stage==='deep'){window.__mteLabProgress.robust=0;}
  capturePreviousLabRun(panel);
  panel.dataset.labCompleted='0';
  panel.dataset.labStage=stage;
