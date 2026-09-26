@@ -82,7 +82,7 @@ function labSignal(closes,i,type,p){
  if(type==='EMA_MOMENTUM'){const f=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.fast),s=labEMA(x.slice(-Math.max(p.slow,p.momentum,50)),p.slow),m=x.length>p.momentum?x[x.length-1]/x[x.length-1-p.momentum]-1:0;return f>s&&m>0?1:f<s&&m<0?-1:0}
  if(type==='RSI_MEAN_REVERSION'){const r=labRSI(x,p.period);if(r<=p.entry)return 1;if(r>=100-p.entry)return -1;return 0}
  if(type==='RSI_MOMENTUM'){const r=labRSI(x,p.period);return r>=p.threshold?1:r<=100-p.threshold?-1:0}
- if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+20,100)),mh=[];for(let j=Math.max(p.slow,j=0);j<base.length;j++){const w=base.slice(0,j+1);mh.push(labEMA(w,p.fast)-labEMA(w,p.slow))}const m=mh[mh.length-1],sig=labEMA(mh,p.signal);return m>sig?1:m<sig?-1:0}
+ if(type==='MACD'){const base=x.slice(-Math.max(p.slow+p.signal+20,100)),mh=[];for(let j=p.slow;j<base.length;j++){const w=base.slice(0,j+1);mh.push(labEMA(w,p.fast)-labEMA(w,p.slow))}const m=mh[mh.length-1],sig=labEMA(mh,p.signal);return m>sig?1:m<sig?-1:0}
  if(type==='BREAKOUT'){const hi=Math.max(...x.slice(-p.lookback)),lo=Math.min(...x.slice(-p.lookback)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
  if(type==='DONCHIAN'){const hi=Math.max(...x.slice(-p.entry)),lo=Math.min(...x.slice(-p.entry)),px=x[x.length-1];return px>=hi?1:px<=lo?-1:0}
  if(type==='BOLLINGER_REVERSION'){const w=x.slice(-p.period),m=labMean(w),sd=labStd(w),z=sd?(x[x.length-1]-m)/sd:0;return z<=-p.z?1:z>=p.z?-1:0}
