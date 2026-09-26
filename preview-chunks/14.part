@@ -397,11 +397,34 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
  else explain.textContent='ROBUSTNESS COMPLETE · No validation candidates were generated.';
  status.textContent='ROBUSTNESS COMPLETE';
 }
+function updateStrategyFamilyCount(){
+ const box=document.getElementById('strategyFamilyChecks'),count=document.getElementById('strategyFamilyCount');
+ if(!box||!count)return;
+ count.textContent=box.querySelectorAll('.lab-family:checked').length+' selected';
+}
+function setTechnicalFamilySelection(mode){
+ const box=document.getElementById('strategyFamilyChecks');if(!box)return;
+ const core=['MA_CROSSOVER','EMA_MOMENTUM','RSI_MOMENTUM','MACD','BREAKOUT','DONCHIAN','BOLLINGER_BREAKOUT','ATR_BREAKOUT','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY','MULTI_FACTOR'];
+ box.querySelectorAll('.lab-family').forEach(x=>{x.checked=mode==='core'?core.includes(x.value):mode==='all';});
+ updateStrategyFamilyCount();
+}
 function initStrategyLabFamilies(){
  const box=document.getElementById('strategyFamilyChecks');if(!box||box.dataset.ready)return;
- const usable=Object.keys(STRATEGY_LIBRARY).filter(x=>x!=='VWAP_REVERSION'&&x!=='VOLUME_BREAKOUT');
- box.innerHTML=usable.map(x=>'<label style="display:flex;align-items:center;gap:7px;font-size:11px"><input type="checkbox" class="lab-family" value="'+x+'" checked> '+STRATEGY_LIBRARY[x].name+'</label>').join('');
+ const groups=[
+  ['TREND / MOMENTUM',['MA_CROSSOVER','EMA_MOMENTUM','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY']],
+  ['BREAKOUT / VOLATILITY',['BREAKOUT','DONCHIAN','ATR_BREAKOUT','BOLLINGER_BREAKOUT']],
+  ['OSCILLATOR / MEAN REVERSION',['RSI_MEAN_REVERSION','RSI_MOMENTUM','BOLLINGER_REVERSION','MACD']],
+  ['MULTI-FACTOR',['MULTI_FACTOR']]
+ ];
+ box.innerHTML=groups.map(([group,items])=>'<div style="grid-column:1/-1;font-size:10px;font-weight:900;margin-top:5px;padding-bottom:3px;border-bottom:1px solid #e1e5ea">'+group+'</div>'+items.map(x=>'<label style="display:flex;align-items:flex-start;gap:7px;font-size:11px;padding:7px;border:1px solid #dfe4ea;border-radius:5px;background:#fff"><input type="checkbox" class="lab-family" value="'+x+'" checked> <span><b>'+STRATEGY_LIBRARY[x].name+'</b><br><span class="sub">'+STRATEGY_LIBRARY[x].desc+'</span></span></label>').join('')).join('');
+ const core=['MA_CROSSOVER','EMA_MOMENTUM','RSI_MOMENTUM','MACD','BREAKOUT','DONCHIAN','BOLLINGER_BREAKOUT','ATR_BREAKOUT','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY','MULTI_FACTOR'];
+ box.querySelectorAll('.lab-family').forEach(x=>{x.checked=core.includes(x.value);x.addEventListener('change',updateStrategyFamilyCount);});
+ const controls=document.createElement('div');
+ controls.style.cssText='grid-column:1/-1;display:flex;gap:7px;margin-bottom:3px';
+ controls.innerHTML='<button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'core\')" style="padding:6px 9px;font-size:10px">CORE TECHNICAL SET</button><button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'all\')" style="padding:6px 9px;font-size:10px">ALL AVAILABLE</button><button type="button" class="secondary" onclick="setTechnicalFamilySelection(\'none\')" style="padding:6px 9px;font-size:10px">CLEAR</button>';
+ box.prepend(controls);
  box.dataset.ready='1';
+ updateStrategyFamilyCount();
 }
 initStrategyLabFamilies();
 
