@@ -191,6 +191,18 @@ function labProgressHTML(){
  const rows=[['STAGE 1 · DISCOVERY',p.discovery],['STAGE 2 · DEEP OPTIMISATION',p.deep],['STAGE 3 · ROBUSTNESS',p.robust]];
  return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS</h3>'+rows.map(x=>'<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+x[0]+'</span><span>'+Math.round(x[1])+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,x[1]))+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div>').join('')+'</div>';
 }
+function mteEnsureCollapsible(el){
+ if(!el)return;
+ const h=el.querySelector('h3'); if(!h)return;
+ if(el.querySelector(':scope > .mte-collapse-head'))return;
+ const title=h.textContent, body=document.createElement('div'), head=document.createElement('div'), titleEl=document.createElement('h3'), btn=document.createElement('button');
+ body.className='mte-collapse-body'; head.className='mte-collapse-head'; titleEl.textContent=title;
+ btn.type='button';btn.className='mte-collapse-toggle';btn.textContent='⌃';btn.title='Collapse section';
+ while(el.firstChild)body.appendChild(el.firstChild);
+ btn.onclick=()=>{const hidden=body.classList.toggle('is-collapsed');btn.textContent=hidden?'⌄':'⌃';btn.title=(hidden?'Expand ':'Collapse ')+title+' section';};
+ head.appendChild(titleEl);head.appendChild(btn);el.innerHTML='';el.classList.add('mte-collapsible-result');el.appendChild(head);el.appendChild(body);
+ if(el.id==='backtestResults')body.classList.add('mte-results-grid');
+}
 function updateLabProgress(patch){
  window.__mteLabProgress={...(window.__mteLabProgress||{discovery:0,deep:0,robust:0}),...patch};
  const old=document.getElementById('strategyLabProgress');
@@ -207,7 +219,7 @@ async function runStrategyDiscovery(){
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
  window.__mteLabProgress={discovery:0,deep:0,robust:0};
- status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';
+ status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';mteEnsureCollapsible(panel);
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
   if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
@@ -238,7 +250,7 @@ async function runStrategyDiscovery(){
     await runScenario(type,p,exit);
     updateLabProgress({discovery:discoveryTotal?scenarioCount/discoveryTotal*100:100});
     if(scenarioCount%20===0){
-     panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';
+     panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Running '+STRATEGY_LIBRARY[type].name+'…</div>';mteEnsureCollapsible(panel);
      await new Promise(resolve=>setTimeout(resolve,0));
     }
    }
@@ -261,7 +273,7 @@ async function runStrategyDiscovery(){
      deepDone++;
      updateLabProgress({deep:deepTotal?deepDone/deepTotal*100:100});
      if(scenarioCount%20===0){
-      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';
+      panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation: '+STRATEGY_LIBRARY[type].name+'…</div>';mteEnsureCollapsible(panel);
       await new Promise(resolve=>setTimeout(resolve,0));
      }
     }
@@ -278,13 +290,13 @@ async function runStrategyDiscovery(){
   const displayTop=(filteredSource.length?filteredSource:source).slice(0,f.topN);
   const filterState=filteredSource.length?'FILTERS PASSED':'NO SCENARIO PASSED FILTERS — SHOWING BEST RAW RESULTS';
   const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td class="'+(x.result.totalReturn>=0?'good':'warn')+'">'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Discovery compares genuine daily-close strategy logic. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;mteEnsureCollapsible(panel);margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Discovery compares genuine daily-close strategy logic. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';
   if(displayTop[0]){
    const b=displayTop[0].result;
    explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+(b.totalReturn>=0?'+':'')+b.totalReturn.toFixed(2)+'% return.';
   }else explain.textContent='STRATEGY LAB COMPLETE · No valid scenarios were generated.';
   status.textContent='LAB COMPLETE';
- }catch(e){console.error('Strategy Lab failed',e);panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+(e?.message||String(e))+'</div>';explain.textContent='STRATEGY LAB FAILED · '+(e?.message||String(e));status.textContent='ERROR'}
+ }catch(e){console.error('Strategy Lab failed',e);panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+(e?.message||String(e))+'</div>';mteEnsureCollapsible(panel);explain.textContent='STRATEGY LAB FAILED · '+(e?.message||String(e));status.textContent='ERROR'}
 }
 function labCostSensitivity(closes,dates,r,cfg){
  const out=[];
@@ -347,7 +359,7 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
  rows.sort((a,b)=>(Number(b.robust)-Number(a.robust))||(b.stab.score-a.stab.score)||((b.oos?.profitFactor||0)-(a.oos?.profitFactor||0)));
  const body=rows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.r.type].name+'</td><td>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.r.totalReturn.toFixed(2)+'%</td><td>'+(x.oos?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.oos?.profitFactor||0).toFixed(2)+'</td><td>'+Math.round(x.stab.score*100)+'%</td><td>'+x.positiveWF+'/'+x.wf.length+'</td><td>'+(x.c2?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.c3?.totalReturn||0).toFixed(2)+'%</td><td>'+Object.entries(x.reg).map(([k,v])=>k+': '+v.length+'T/'+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</td><td><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES VALIDATION')+'</b></td></tr>').join('');
  const profiles=rows.map((x,i)=>'<div class="box" style="margin-top:10px"><h4>CANDIDATE '+(i+1)+' · '+STRATEGY_LIBRARY[x.r.type].name+'</h4><div class="row"><span>Parameters</span><b>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</b></div><div class="row"><span>In-sample / OOS return</span><b>'+x.r.totalReturn.toFixed(2)+'% / '+(x.oos?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>OOS PF / trades</span><b>'+(x.oos?.profitFactor||0).toFixed(2)+' / '+(x.oos?.trades||0)+'</b></div><div class="row"><span>Parameter stability</span><b>'+Math.round(x.stab.score*100)+'% · '+x.stab.profitable+'/'+x.stab.total+' neighbours profitable</b></div><div class="row"><span>Walk-forward</span><b>'+x.positiveWF+'/'+x.wf.length+' positive windows</b></div><div class="row"><span>Cost sensitivity</span><b>2× '+(x.c2?.totalReturn||0).toFixed(2)+'% · 3× '+(x.c3?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>Regime returns</span><b>'+Object.entries(x.reg).map(([k,v])=>k+' '+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</b></div><div class="row"><span>Candidate status</span><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'</b></div></div>').join('');
- panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS & VALIDATION</h3><div class="row"><span>Validation candidates</span><b>'+rows.length+'</b></div><div class="sub" style="margin:10px 0">Validation separates historical fit from robustness: 70/30 out-of-sample testing, parameter stability, rolling walk-forward consistency, regime behaviour and 1×/1.5×/2×/3× execution-cost sensitivity.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>IS RETURN</th><th>OOS RETURN</th><th>OOS PF</th><th>STABILITY</th><th>WF POSITIVE</th><th>2× COST</th><th>3× COST</th><th>REGIME</th><th>STATUS</th></tr></thead><tbody>'+body+'</tbody></table></div>'+profiles;
+ panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS & VALIDATION</h3><div class="row"><span>Validation candidates</span><b>'+rows.length+'</b></div><div class="sub" style="margin:10px 0">Validation separates historical fit from robustness: 70/30 out-of-sample testing, parameter stability, rolling walk-forward consistency, regime behaviour and 1×/1.5×/2×/3× execution-cost sensitivity.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>IS RETURN</th><th>OOS RETURN</th><th>OOS PF</th><th>STABILITY</th><th>WF POSITIVE</th><th>2× COST</th><th>3× COST</th><th>REGIME</th><th>STATUS</th></tr></thead><tbody>'+body+'</tbody></table></div>'+profiles;mteEnsureCollapsible(panel);
  if(rows[0])explain.innerHTML='<b>ROBUSTNESS COMPLETE</b><br>'+STRATEGY_LIBRARY[rows[0].r.type].name+' · OOS PF '+(rows[0].oos?.profitFactor||0).toFixed(2)+' · stability '+Math.round(rows[0].stab.score*100)+'% · '+(rows[0].robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'.';
  else explain.textContent='ROBUSTNESS COMPLETE · No validation candidates were generated.';
  status.textContent='ROBUSTNESS COMPLETE';
