@@ -245,9 +245,19 @@ function updateLabProgress(patch){
   if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML(active));
  }
 }
-function labHistoryKey(){return 'mteStrategyLabHistory:v2';}
+function labHistoryKey(){return 'mteStrategyLabHistory:v3';}
 function loadLabHistory(){try{const raw=localStorage.getItem(labHistoryKey()),parsed=raw?JSON.parse(raw):[];return Array.isArray(parsed)?parsed:[];}catch(e){return []}}
-function saveLabHistoryEntry(entry){try{const history=loadLabHistory();history.push(entry);localStorage.setItem(labHistoryKey(),JSON.stringify(history.slice(-25)));}catch(e){}}
+function saveLabHistoryEntry(entry){
+ try{
+  const history=loadLabHistory();
+  history.push(entry);
+  let keep=history.slice(-10);
+  while(keep.length){
+   try{localStorage.setItem(labHistoryKey(),JSON.stringify(keep));return true;}catch(e){keep.shift();}
+  }
+ }catch(e){}
+ return false;
+}
 function capturePreviousLabRun(panel){
  if(!panel||panel.dataset.labCompleted!=='1')return;
  const body=panel.querySelector(':scope > .mte-collapse-body'),html=body?body.innerHTML:panel.innerHTML;
@@ -443,7 +453,16 @@ function updateStrategyFamilyCount(){
  if(!box||!count)return;
  count.textContent=box.querySelectorAll('.lab-family:checked').length+' selected';
 }
-function runSingleTechnicalFamily(type){ const box=document.getElementById('strategyFamilyChecks'); if(!box)return; box.querySelectorAll('.lab-family').forEach(x=>{x.checked=x.value===type;}); updateStrategyFamilyCount(); setStrategyLabPath('technical'); setStrategyLabStage('discovery',false); return runCurrentStrategyLabStage(); }
+function runSingleTechnicalFamily(type){
+ const box=document.getElementById('strategyFamilyChecks'); if(!box)return;
+ box.querySelectorAll('.lab-family').forEach(x=>{x.checked=x.value===type;});
+ updateStrategyFamilyCount(); setStrategyLabPath('technical'); setStrategyLabStage('discovery',false);
+ const btn=box.querySelector('.lab-family-test[data-family="'+type+'"]');
+ if(btn){btn.disabled=true;btn.textContent='TESTING…';}
+ const result=runCurrentStrategyLabStage();
+ Promise.resolve(result).finally(()=>{if(btn){btn.disabled=false;btn.textContent='TEST';}});
+ return result;
+}
 function setTechnicalFamilySelection(mode){
  const box=document.getElementById('strategyFamilyChecks');if(!box)return;
  const core=['MA_CROSSOVER','EMA_MOMENTUM','RSI_MOMENTUM','MACD','BREAKOUT','DONCHIAN','BOLLINGER_BREAKOUT','ATR_BREAKOUT','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY','MULTI_FACTOR'];
@@ -458,7 +477,7 @@ function initStrategyLabFamilies(){
   ['OSCILLATOR / MEAN REVERSION',['RSI_MEAN_REVERSION','RSI_MOMENTUM','BOLLINGER_REVERSION','MACD']],
   ['MULTI-FACTOR',['MULTI_FACTOR']]
  ];
- box.innerHTML=groups.map(([group,items])=>'<div style="grid-column:1/-1;font-size:10px;font-weight:900;margin-top:7px;padding:4px 0;border-bottom:1px solid #e1e5ea">'+group+'</div>'+items.map(x=>'<label class="lab-family-card"><input type="checkbox" class="lab-family" value="'+x+'" checked><span style="flex:1"><b>'+STRATEGY_LIBRARY[x].name+'</b><br><span class="sub">'+STRATEGY_LIBRARY[x].desc+'</span></span><button type="button" class="secondary lab-family-test" onclick="event.preventDefault();event.stopPropagation();runSingleTechnicalFamily(\''+x+'\')">TEST</button></label>').join('')).join('');
+ box.innerHTML=groups.map(([group,items])=>'<div style="grid-column:1/-1;font-size:10px;font-weight:900;margin-top:7px;padding:4px 0;border-bottom:1px solid #e1e5ea">'+group+'</div>'+items.map(x=>'<label class="lab-family-card"><input type="checkbox" class="lab-family" value="'+x+'" checked><span style="flex:1"><b>'+STRATEGY_LIBRARY[x].name+'</b><br><span class="sub">'+STRATEGY_LIBRARY[x].desc+'</span></span><button type="button" class="secondary lab-family-test" data-family="'+x+'" onclick="event.preventDefault();event.stopPropagation();runSingleTechnicalFamily(\'+x+'\')">TEST</button></label>').join('')).join('');
  const core=['MA_CROSSOVER','EMA_MOMENTUM','RSI_MOMENTUM','MACD','BREAKOUT','DONCHIAN','BOLLINGER_BREAKOUT','ATR_BREAKOUT','MOMENTUM','TREND_MOMENTUM','TREND_VOLATILITY','MULTI_FACTOR'];
  box.querySelectorAll('.lab-family').forEach(x=>{x.checked=core.includes(x.value);x.addEventListener('change',updateStrategyFamilyCount);});
  const controls=document.createElement('div');
