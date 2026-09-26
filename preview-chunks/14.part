@@ -255,10 +255,15 @@ async function runStrategyDiscovery(){
  initLabProgress('technical|'+asset);
  status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';mteEnsureCollapsible(panel);
  try{
-  const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),dates=filtered.map(x=>x.date),closes=filtered.map(x=>x.close);
-  if(closes.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
+  const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),fullDates=filtered.map(x=>x.date),fullCloses=filtered.map(x=>x.close);
+  if(fullCloses.length<120)throw new Error('At least 120 observations are required for Strategy Lab.');
   if(!families.length)throw new Error('Select at least one strategy family.');
   if(!exits.length)throw new Error('Select at least one exit model.');
+  // Stage 2 and Stage 3 candidate selection MUST use only the 70% in-sample period.
+  // The final 30% holdout is reserved exclusively for Stage 3 OOS validation.
+  const split=Math.max(120,Math.floor(fullCloses.length*.7));
+  const dates=stage==='discovery'?fullDates:fullDates.slice(0,split);
+  const closes=stage==='discovery'?fullCloses:fullCloses.slice(0,split);
   const allResults=[],qualified=[],familyBest={},errors=[];
   let scenarioCount=0;
   const runScenario=async(type,p,exit)=>{
@@ -319,7 +324,7 @@ async function runStrategyDiscovery(){
    updateLabProgress({});
    panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS</h3><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="sub">Deep optimisation complete. Starting OOS robustness and validation…</div>';mteEnsureCollapsible(panel);
    const base=labRank(finalResults.length?finalResults:discoveryBest,f.rankBy).slice(0,Math.max(3,f.topN));
-   return await runStrategyRobustness(asset,closes,dates,cfg,f,base,panel,status,explain);
+   return await runStrategyRobustness(asset,fullCloses,fullDates,cfg,f,base,panel,status,explain);
   }
   const source=stage==='discovery'?discoveryBest:finalResults;
   labRank(source,f.rankBy);
@@ -327,7 +332,7 @@ async function runStrategyDiscovery(){
   const displayTop=(filteredSource.length?filteredSource:source).slice(0,f.topN);
   const filterState=filteredSource.length?'FILTERS PASSED':'NO SCENARIO PASSED FILTERS — SHOWING BEST RAW RESULTS';
   const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td class="'+(x.result.totalReturn>=0?'good':'warn')+'">'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Stage 1 is an independent daily-close strategy-family discovery layer using only information available before each signal. Sharpe is calculated from the resulting daily equity curve, including zero-return days, to avoid overstating sparse-trade performance. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';mteEnsureCollapsible(panel);
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Research window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+(stage==='discovery'?' · FULL HISTORY':' · IN-SAMPLE 70%')+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Stage 1 is an independent daily-close strategy-family discovery layer using only information available before each signal. Sharpe is calculated from the resulting daily equity curve, including zero-return days, to avoid overstating sparse-trade performance. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';mteEnsureCollapsible(panel);
   if(displayTop[0]){
    const b=displayTop[0].result;
    explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+(b.totalReturn>=0?'+':'')+b.totalReturn.toFixed(2)+'% return.';
