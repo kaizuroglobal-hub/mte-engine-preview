@@ -185,7 +185,7 @@ async function runStrategyDiscovery(){
    await new Promise(resolve=>setTimeout(resolve,0));
   }
   let finalCandidates=candidates;
-  if(stage==='deep'){
+  if(stage==='deep'||stage==='robust'){
    labRank(discoveryBest,f.rankBy);
    const selectedTypes=discoveryBest.slice(0,Math.max(3,f.topN)).map(x=>x.result.type);
    finalCandidates=[];
@@ -211,8 +211,8 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
   const r=c.result,near=[];
   const keys=Object.keys(r.params);
   for(const k of keys){
-   const v=Number(r.params[k]);if(!Number.isFinite(v)||v<=1)continue;
-   for(const delta of [-1,1]){const p={...r.params,[k]:v+delta};if(p.fast&&p.slow&&p.fast>=p.slow)continue;const rr=labScenario(closes,dates,r.type,p,r.exitModel,cfg);if(rr)near.push(rr.totalReturn)}
+   const v=Number(r.params[k]);if(!Number.isFinite(v)||v<=0)continue;const step=Number.isInteger(v)?1:Math.max(Math.abs(v)*0.1,0.001);
+   for(const delta of [-step,step]){const p={...r.params,[k]:v+delta};if(p.fast&&p.slow&&p.fast>=p.slow)continue;const rr=labScenario(closes,dates,r.type,p,r.exitModel,cfg);if(rr)near.push(rr.totalReturn)}
   }
   const mean=near.length?near.reduce((a,x)=>a+x,0)/near.length:0;
   const sd=near.length>1?Math.sqrt(near.reduce((a,x)=>a+(x-mean)*(x-mean),0)/(near.length-1)):0;
