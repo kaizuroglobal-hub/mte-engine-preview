@@ -127,6 +127,19 @@ function labExit(closes,entryIndex,direction,model,p){
  }
  const idx=Math.min(closes.length-1,entryIndex+horizon);return {idx,px:closes[idx],reason:'OPEN_AT_END'};
 }
+function summariseLabTrades(symbol,trades,bars,strategy,cfg,dates){
+ const rs=trades.map(t=>Number(t.ret||0)),wins=rs.filter(x=>x>0),losses=rs.filter(x=>x<=0);
+ const grossWin=wins.reduce((a,x)=>a+x,0),grossLoss=Math.abs(losses.reduce((a,x)=>a+x,0));
+ let equity=cfg.capital,peak=equity,dd=0;
+ for(const x of rs){equity*=1+x/100;peak=Math.max(peak,equity);dd=Math.max(dd,(peak-equity)/peak*100);}
+ const byDate={};
+ trades.forEach(t=>{const d=t.exitDate||t.entryDate;if(!d)return;byDate[d]=(byDate[d]||1)*(1+Number(t.ret||0)/100);});
+ const dailyReturns=(dates||[]).map(d=>byDate[d]===undefined?0:byDate[d]-1);
+ const avgD=dailyReturns.length?dailyReturns.reduce((a,x)=>a+x,0)/dailyReturns.length:0;
+ const sd=dailyReturns.length>1?Math.sqrt(dailyReturns.reduce((a,x)=>a+(x-avgD)*(x-avgD),0)/(dailyReturns.length-1)):0;
+ const sharpe=sd?avgD/sd*Math.sqrt(252):0;
+ return {symbol,strategy,bars,trades:rs.length,winRate:rs.length?wins.length/rs.length*100:0,averageReturn:rs.length?rs.reduce((a,x)=>a+x,0)/rs.length:0,totalReturn:(equity/cfg.capital-1)*100,pnl:equity-cfg.capital,endingCapital:equity,profitFactor:grossLoss?grossWin/grossLoss:0,maxDrawdown:dd,averageHold:rs.length?trades.reduce((a,t)=>a+t.bars,0)/rs.length:0,best:rs.length?Math.max(...rs):0,worst:rs.length?Math.min(...rs):0,sharpe,tradeList:trades,startDate:dates?.[0]||'',endDate:dates?.[dates.length-1]||'',costPct:btCostPct(cfg)};
+}
 function labScenario(closes,dates,type,p,exitModel,cfg){
  const trades=[];let side=0,entryIndex=-1,entryPrice=0;
  const warm=Math.max(30,p.slow||0,p.lookback||0,p.period||0,p.atrPeriod||0,p.entry||0);
@@ -141,7 +154,7 @@ function labScenario(closes,dates,type,p,exitModel,cfg){
   }
  }
  if(side!==0&&entryIndex>=0){const ex=labExit(closes,entryIndex,side,'TIME',{horizon:Math.min(40,closes.length-entryIndex-1),atrMult:2.5}),gross=side===1?pctJS(ex.px,entryPrice):pctJS(entryPrice,ex.px);trades.push({direction:side===1?'LONG':'SHORT',ret:gross-btCostPct(cfg),bars:ex.idx-entryIndex,reason:'END_OF_TEST',entryDate:dates[entryIndex],exitDate:dates[ex.idx],entryPrice,exitPrice:ex.px})}
- const r=summariseTrades('',trades,closes.length,'TECHNICAL LAB · '+STRATEGY_LIBRARY[type].name,cfg,dates);
+ const r=summariseLabTrades('',trades,closes.length,'TECHNICAL LAB · '+STRATEGY_LIBRARY[type].name,cfg,dates);
  // A valid scenario is still a result even when its trade count is zero; filters decide qualification.
  return r?{...r,type,params:p,exitModel}:null;
 }
@@ -310,7 +323,7 @@ async function runStrategyDiscovery(){
   const displayTop=(filteredSource.length?filteredSource:source).slice(0,f.topN);
   const filterState=filteredSource.length?'FILTERS PASSED':'NO SCENARIO PASSED FILTERS — SHOWING BEST RAW RESULTS';
   const rows=displayTop.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.result.type].name+'</td><td>'+Object.entries(x.result.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.result.exitModel+'</td><td>'+x.result.trades+'</td><td class="'+(x.result.totalReturn>=0?'good':'warn')+'">'+(x.result.totalReturn>=0?'+':'')+x.result.totalReturn.toFixed(2)+'%</td><td>'+x.result.profitFactor.toFixed(2)+'</td><td>'+x.result.sharpe.toFixed(2)+'</td><td>'+x.result.maxDrawdown.toFixed(2)+'%</td><td>'+x.result.winRate.toFixed(1)+'%</td></tr>').join('');
-  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Discovery compares genuine daily-close strategy logic. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';mteEnsureCollapsible(panel);
+  panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+(stage==='discovery'?'STAGE 1 · DISCOVERY':'STAGE 2 · DEEP OPTIMISATION')+'</h3><div class="row"><span>Asset / window</span><b>'+asset+' · '+dates[0]+' → '+dates[dates.length-1]+'</b></div><div class="row"><span>Scenarios processed</span><b>'+scenarioCount.toLocaleString()+'</b></div><div class="row"><span>Results generated</span><b>'+allResults.length.toLocaleString()+'</b></div><div class="row"><span>Passing filters</span><b>'+qualified.length.toLocaleString()+'</b></div><div class="row"><span>Errors / skipped</span><b>'+errors.length.toLocaleString()+'</b></div><div class="sub" style="margin-top:8px"><b>'+filterState+'</b></div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>EXIT</th><th>TRADES</th><th>RETURN</th><th>PF</th><th>SHARPE</th><th>MAX DD</th><th>WIN %</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub" style="margin-top:10px">Stage 1 is an independent daily-close strategy-family discovery layer using only information available before each signal. Sharpe is calculated from the resulting daily equity curve, including zero-return days, to avoid overstating sparse-trade performance. Stage 2 deep-searches the strongest strategy families. Filters qualify results but never hide the best raw results. The standard RUN BACKTEST engine was not modified.</div>';mteEnsureCollapsible(panel);
   if(displayTop[0]){
    const b=displayTop[0].result;
    explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+(b.totalReturn>=0?'+':'')+b.totalReturn.toFixed(2)+'% return.';
