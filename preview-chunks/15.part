@@ -328,9 +328,8 @@
       if(action==='select-all'){
         box.querySelectorAll('.mte-strategy-check:not(:disabled)').forEach(x=>{x.checked=true;});
         btn.blur();
-        // SELECT ALL is a one-click test action: update the selection first,
-        // then immediately run the expanded lab against the full universe.
-        mteExpandedStrategyLab();
+        // Selection changes configuration only. The unified Strategy Lab
+        // workflow owns the run action.
         return;
       }
       if(action==='select-core'){
