@@ -175,7 +175,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 function setStrategyLabPath(path){
  const p=path==='expanded'?'expanded':'technical';
  window.__strategyLabPath=p;
- if(p==='expanded' && typeof addExpandedUI==='function' && !document.getElementById('mteExpandedLab')) addExpandedUI();
+ if(p==='expanded' && typeof window.addExpandedMteLabUI==='function' && !document.getElementById('mteExpandedLab')) window.addExpandedMteLabUI();
  const tech=document.getElementById('technicalLabAdvanced');
  const expanded=document.getElementById('mteExpandedLab');
  if(tech)tech.style.display=p==='technical'?'':'none';
