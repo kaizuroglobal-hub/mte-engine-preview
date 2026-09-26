@@ -15,26 +15,18 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Fetch latest private MTE Pages artifact
+      - name: Assemble preview
         run: |
-          mkdir -p _site /tmp/mte-preview
-          curl -L --fail --output /tmp/mte-preview/github-pages.zip 'https://sdmntprnznorth.oaiusercontent.com/files/00000000-e0fc-820b-9870-9655e45b073d/raw?se=2026-09-26T06%3A30%3A42Z&sp=r&sv=2026-02-06&sr=b&scid=47bfc5db-bda1-541e-8703-f951486a84df&skoid=697dc613-6c29-4a76-87a7-d1b783c6d43f&skt=2026-09-26T04%3A29%3A56Z&ske=2026-09-27T04%3A29%3A56Z&sks=b&skv=2026-02-06&sig=ALpPkiWageqkhpZv6fFsmfTtwKEy8N3A%2B%2B9S9g1IZQc%3D'
-          unzip -o /tmp/mte-preview/github-pages.zip -d /tmp/mte-preview/artifact
-          tar -xf /tmp/mte-preview/artifact/artifact.tar -C /tmp/mte-preview/artifact
-          cp /tmp/mte-preview/artifact/index.html _site/index.html
-
+          mkdir -p _site
+          cat preview-chunks/*.part > _site/index.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-
   deploy:
-    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     environment:
