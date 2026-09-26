@@ -193,11 +193,12 @@ function labProgressHTML(){
 }
 function mteEnsureCollapsible(el){
  if(!el)return;
- const h=el.querySelector('h3'); if(!h)return;
  if(el.querySelector(':scope > .mte-collapse-head'))return;
+ const h=el.querySelector(':scope > h3'); if(!h)return;
  const title=h.textContent, body=document.createElement('div'), head=document.createElement('div'), titleEl=document.createElement('h3'), btn=document.createElement('button');
  body.className='mte-collapse-body'; head.className='mte-collapse-head'; titleEl.textContent=title;
  btn.type='button';btn.className='mte-collapse-toggle';btn.textContent='⌃';btn.title='Collapse section';
+ h.remove();
  while(el.firstChild)body.appendChild(el.firstChild);
  btn.onclick=()=>{const hidden=body.classList.toggle('is-collapsed');btn.textContent=hidden?'⌄':'⌃';btn.title=(hidden?'Expand ':'Collapse ')+title+' section';};
  head.appendChild(titleEl);head.appendChild(btn);el.innerHTML='';el.classList.add('mte-collapsible-result');el.appendChild(head);el.appendChild(body);
