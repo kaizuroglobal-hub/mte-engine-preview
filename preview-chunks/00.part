@@ -112,7 +112,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">This is the research and optimisation layer for the selected strategy. Technical research discovers supporting price-based components; Expanded MTE research tests the core macro / cross-asset architecture.</div></div>
-    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle advanced Strategy Lab settings" title="Toggle advanced settings">⌄</button>
+    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserHeaderToggle" class="mte-collapse-toggle" aria-label="Toggle advanced Strategy Lab settings" title="Toggle advanced settings">⌄</button>
   </div>
 
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
@@ -230,8 +230,8 @@ function openStrategyLabPanel(){
  box.dataset.collapsed='0';
  const advanced=document.getElementById('technicalLabAdvanced');
  if(advanced)advanced.style.display=(window.__strategyLabPath||'technical')==='technical'?'':'none';
- const btn=document.getElementById('technicalOptimiserToggle');
- if(btn){btn.textContent='⌃';btn.setAttribute('aria-label','Collapse advanced Strategy Lab settings');}
+ const btn=document.getElementById('technicalOptimiserToggle'),headerBtn=document.getElementById('technicalOptimiserHeaderToggle');
+ [btn,headerBtn].filter(Boolean).forEach(x=>{x.textContent='⌃';x.setAttribute('aria-label','Collapse advanced Strategy Lab settings');});
 }
 function toggleTechnicalOptimiserFilters(){
  const advanced=document.getElementById('technicalLabAdvanced'),btn=document.getElementById('technicalOptimiserToggle');
@@ -239,8 +239,7 @@ function toggleTechnicalOptimiserFilters(){
  const hidden=advanced.dataset.collapsed==='1';
  advanced.style.display=hidden?'':'none';
  advanced.dataset.collapsed=hidden?'0':'1';
- btn.textContent=hidden?'⌃':'⌄';
- btn.setAttribute('aria-label',hidden?'Collapse advanced Strategy Lab settings':'Expand advanced Strategy Lab settings');
+ [btn,headerBtn].filter(Boolean).forEach(x=>{x.textContent=hidden?'⌃':'⌄';x.setAttribute('aria-label',hidden?'Collapse advanced Strategy Lab settings':'Expand advanced Strategy Lab settings');});
 }
 function initStrategyLabWorkflow(){
  window.__strategyLabPath='technical';
