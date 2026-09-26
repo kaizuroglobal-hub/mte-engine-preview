@@ -118,8 +118,8 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
     <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH ENGINE</div>
     <div id="strategyLabPath" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')" class="lab-choice" style="text-align:left;padding:12px"><b>TECHNICAL STRATEGY LAB</b><br><span class="sub">Price-based signal discovery & optimisation</span></button>
-      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')" class="lab-choice" style="text-align:left;padding:12px"><b>EXPANDED MTE LAB</b><br><span class="sub">Core macro / cross-asset research</span></button>
+      <button type="button" class="primary lab-choice" data-lab-path="technical" onclick="setStrategyLabPath('technical') style="text-align:left;padding:12px"><b>TECHNICAL STRATEGY LAB</b><br><span class="sub">Price-based signal discovery & optimisation</span></button>
+      <button type="button" class="secondary lab-choice" data-lab-path="expanded" onclick="setStrategyLabPath('expanded') style="text-align:left;padding:12px"><b>EXPANDED MTE LAB</b><br><span class="sub">Core macro / cross-asset research</span></button>
     </div>
 
     <div style="font-size:11px;font-weight:800;margin:15px 0 8px">STEP 2 · RESEARCH STAGE</div>
@@ -130,7 +130,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
     </div>
 
     <div id="strategyLabRunState" class="lab-help" style="margin-top:10px">Technical Strategy Lab · Stage 1 · Discovery</div>
-    <button type="button" id="strategyLabRun" class="primary lab-run-primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%">RUN STAGE 1 · DISCOVERY</button><div class="lab-help" style="margin-top:7px;text-align:center">Choose the engine and stage above, then press RUN. Changing a signal family only changes the test selection until you press RUN.</div>
+    <button type="button" id="strategyLabRun" class="primary lab-run-primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%">RUN STAGE 1 · DISCOVERY</button><div class="lab-help" style="margin-top:7px;text-align:center">1. Choose a research engine · 2. Choose a stage · 3. Select signal families · 4. RUN. Use TEST on a family to run that family only.</div>
   </div>
 
   <div id="technicalLabAdvanced" data-collapsed="0" style="margin-top:12px;display:block">
