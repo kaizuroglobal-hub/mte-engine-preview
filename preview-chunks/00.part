@@ -27,7 +27,7 @@ main{max-width:1480px;margin:auto;padding:30px}.head{display:flex;justify-conten
 table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d7dde3;border-radius:5px;overflow:hidden}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid #e6eaed;font-size:11px}th{color:#707b86;font-weight:650;background:#f8f9fa}tr:last-child td{border:0}
 .badge{padding:4px 7px;border-radius:3px;background:#edf7f2;color:#167b57;font-size:9px;font-weight:700}.badge.gray{background:#eef1f3;color:#66727d}.badge.amber{background:#fff7e8;color:#956300}
 footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a858f;font-size:10px;display:flex;justify-content:space-between;background:#fff}
-.toast{position:fixed;right:25px;bottom:25px;background:#18212b;color:#fff;padding:12px 16px;border-radius:4px;font-size:11px;display:none;z-index:30}.mte-collapse-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;margin:0}.mte-collapse-head h3{margin:0!important}.mte-collapse-toggle{width:28px;height:28px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #cdd4db;border-radius:4px;color:#34404b;font-size:16px;line-height:1;font-weight:700;cursor:pointer}.mte-collapse-body{margin-top:12px}.mte-collapse-body.is-collapsed{display:none}.mte-collapsible-result{display:block!important}.mte-results-grid .box{margin:0}.mte-results-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:15px}@media(max-width:1050px){.mte-results-grid{grid-template-columns:1fr}}
+.toast{position:fixed;right:25px;bottom:25px;background:#18212b;color:#fff;padding:12px 16px;border-radius:4px;font-size:11px;display:none;z-index:30}.mte-collapse-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;margin:0}.mte-open-lab-btn{font-size:11px!important;padding:7px 12px!important;min-width:82px}.mte-lab-run-btn{font-size:11px!important;padding:7px 12px!important}.mte-collapse-head h3{margin:0!important}.mte-collapse-toggle{width:28px;height:28px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #cdd4db;border-radius:4px;color:#34404b;font-size:16px;line-height:1;font-weight:700;cursor:pointer}.mte-collapse-body{margin-top:12px}.mte-collapse-body.is-collapsed{display:none}.mte-collapsible-result{display:block!important}.mte-results-grid .box{margin:0}.mte-results-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:15px}@media(max-width:1050px){.mte-results-grid{grid-template-columns:1fr}}
 @media(max-width:1050px){.grid{grid-template-columns:1fr 1fr}.detail-grid{grid-template-columns:1fr}.head{display:block}.metrics{margin-top:22px}}
 @media(max-width:700px){.grid{grid-template-columns:1fr}.switch{display:none}main{padding:20px}.metrics{gap:15px;flex-wrap:wrap}}
 
@@ -107,12 +107,12 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
    <label><span>ENTRY / MANAGEMENT</span><select id="btTimeframe"><option>4H context · 1H management · 15M execution</option><option>1H context · 15M management · 5M execution</option></select></label>
    <label><span>EXIT MODEL</span><select id="btExit"><option>STRUCTURE_1H</option><option>FIXED_2R</option><option>ATR_2_5</option><option>ATR_3_0</option><option>HYBRID</option><option>ADAPTIVE</option></select></label>
   </div>
-  <div class="actions" style="margin-top:14px"><button class="primary" onclick="runBacktest()">RUN BACKTEST</button><button onclick="runStrategyLab()">STRATEGY LAB</button><button onclick="selectNextAsset()">NEXT ASSET</button></div>
+  <div class="actions" style="margin-top:14px"><button class="primary" onclick="runBacktest()">RUN BACKTEST</button><button type="button" class="mte-open-lab-btn" onclick="openStrategyLabPanel()">OPEN LAB</button><button onclick="selectNextAsset()">NEXT ASSET</button></div>
  </div>
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div><h3 style="margin:0">TECHNICAL STRATEGY LAB</h3><div class="sub">Stage 1 discovers strategy families. Stage 2 deeply optimises the strongest candidates. Stage 3 tests parameter and rolling-window robustness.</div></div>
-    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle Strategy Lab filters" title="Toggle filters">⌃</button>
+    <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle Strategy Lab filters" title="Toggle filters">⌃</button><button type="button" onclick="runStrategyLab()" class="mte-lab-run-btn primary" style="margin-top:12px">RUN STRATEGY LAB</button>
   </div>
   <div class="control-grid" style="margin-top:12px">
     <label><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
@@ -138,7 +138,15 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
   <div class="sub" style="margin-top:10px">Current committed historical cache is daily close data. Strategy Lab therefore runs genuine daily logic only; intraday timeframes, VWAP and volume-dependent strategies require the intraday OHLCV cache before they can be tested honestly.</div>
 </div>
 <script>
-function toggleTechnicalOptimiserFilters(){const box=document.getElementById("technicalOptimiserControls"),btn=document.getElementById("technicalOptimiserToggle");if(!box||!btn)return;const hidden=box.dataset.collapsed==="1";Array.from(box.children).slice(1).forEach(el=>el.style.display=hidden?"":"none");box.dataset.collapsed=hidden?"0":"1";btn.textContent=hidden?"⌃":"⌄";btn.setAttribute("aria-label",hidden?"Collapse Strategy Lab filters":"Expand Strategy Lab filters");}
+function openStrategyLabPanel(){
+ const box=document.getElementById('technicalOptimiserControls');
+ if(!box)return;
+ box.scrollIntoView({behavior:'smooth',block:'start'});
+ box.dataset.collapsed='0';
+ Array.from(box.children).slice(1).forEach(el=>el.style.display='');
+ const btn=document.getElementById('technicalOptimiserToggle');
+ if(btn){btn.textContent='⌃';btn.setAttribute('aria-label','Collapse Strategy Lab filters');}
+}function toggleTechnicalOptimiserFilters(){const box=document.getElementById("technicalOptimiserControls"),btn=document.getElementById("technicalOptimiserToggle");if(!box||!btn)return;const hidden=box.dataset.collapsed==="1";Array.from(box.children).slice(1).forEach(el=>el.style.display=hidden?"":"none");box.dataset.collapsed=hidden?"0":"1";btn.textContent=hidden?"⌃":"⌄";btn.setAttribute("aria-label",hidden?"Collapse Strategy Lab filters":"Expand Strategy Lab filters");}
 </script><div class="detail-grid" id="backtestResults"></div>
  <div class="box" id="backtestHistory" style="margin-top:15px"><div class="mte-collapse-head"><h3>PREVIOUS BACKTESTS</h3><button type="button" class="mte-collapse-toggle" onclick="toggleBacktestHistory()" aria-label="Toggle previous backtests" title="Toggle previous backtests">⌃</button></div><div class="mte-collapse-body" id="backtestHistoryBody">No previous runs in this session.</div></div>
  <div id="btTrades"></div>
