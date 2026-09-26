@@ -218,7 +218,7 @@ function labProgressHTML(activeStage){
  ];
  return '<div id="strategyLabProgress" class="box" style="margin-top:15px"><h3>STRATEGY LAB PROGRESS</h3>'+rows.map(([key,label])=>{
   const value=Math.max(0,Math.min(100,Number(p[key]||0)));
-  const state=key===active?' · ACTIVE':value>=100?' · COMPLETE':' · PENDING';
+  const state=value>=100?' · COMPLETE':key===active?' · ACTIVE':' · PENDING';
   return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:5px"><span>'+label+state+'</span><span>'+Math.round(value)+'%</span></div><div style="height:12px;background:#e9edf2;border-radius:7px;overflow:hidden"><div style="height:100%;width:'+value+'%;background:#1f2937;border-radius:7px;transition:width .15s ease"></div></div></div>';
  }).join('')+'</div>';
 }
@@ -245,6 +245,27 @@ function updateLabProgress(patch){
   if(panel)panel.insertAdjacentHTML('beforebegin',labProgressHTML(active));
  }
 }
+function labHistoryKey(){return 'mteStrategyLabHistory:v2';}
+function loadLabHistory(){try{const raw=localStorage.getItem(labHistoryKey()),parsed=raw?JSON.parse(raw):[];return Array.isArray(parsed)?parsed:[];}catch(e){return []}}
+function saveLabHistoryEntry(entry){try{const history=loadLabHistory();history.push(entry);localStorage.setItem(labHistoryKey(),JSON.stringify(history.slice(-25)));}catch(e){}}
+function capturePreviousLabRun(panel){
+ if(!panel||panel.dataset.labCompleted!=='1')return;
+ const body=panel.querySelector(':scope > .mte-collapse-body'),html=body?body.innerHTML:panel.innerHTML;
+ if(!html||html.includes('Preparing ')||html.includes('Running '))return;
+ saveLabHistoryEntry({id:Date.now(),timestamp:new Date().toISOString(),stage:window.__strategyLabStage||document.getElementById('labStage')?.value||'discovery',path:window.__strategyLabPath||'technical',asset:document.getElementById('btAsset')?.value||'',html});
+}
+function renderLabHistory(){
+ let box=document.getElementById('strategyLabHistory'),anchor=document.getElementById('optimisationResults');
+ if(!anchor)return;
+ if(!box){box=document.createElement('div');box.id='strategyLabHistory';box.className='box';box.style.marginTop='15px';anchor.parentNode.insertBefore(box,anchor.nextSibling);}
+ const history=loadLabHistory();
+ box.innerHTML='<div class="mte-collapse-head"><h3 style="margin:0">PREVIOUS STRATEGY LAB RUNS</h3><button type="button" class="mte-collapse-toggle" id="strategyLabHistoryToggle">⌃</button></div><div id="strategyLabHistoryBody" class="mte-collapse-body">'+
+  (history.length?history.slice().reverse().map((r,i)=>'<div style="border-bottom:1px solid #e4e8ec;padding:10px 0"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><b>#'+(history.length-i)+'</b> · '+(r.path==='expanded'?'Expanded MTE Lab':'Technical Strategy Lab')+' · '+String(r.stage||'discovery').toUpperCase()+' · '+(r.asset||'')+'<div class="sub">'+new Date(r.timestamp).toLocaleString()+'</div></div><button type="button" class="secondary" data-lab-history-view="'+i+'" style="padding:6px 9px;font-size:10px">VIEW</button></div><div class="mte-lab-history-detail" style="display:none;margin-top:10px">'+r.html+'</div></div>').join(''):'<div class="sub">No previous Strategy Lab runs saved yet.</div>')+
+  '</div>';
+ const toggle=box.querySelector('#strategyLabHistoryToggle'),body=box.querySelector('#strategyLabHistoryBody');
+ if(toggle&&body)toggle.onclick=()=>{const hidden=body.classList.toggle('is-collapsed');toggle.textContent=hidden?'⌄':'⌃';};
+ box.querySelectorAll('[data-lab-history-view]').forEach(btn=>btn.onclick=()=>{const d=btn.parentElement.parentElement.parentElement.querySelector('.mte-lab-history-detail');if(d)d.style.display=d.style.display==='none'?'':'none';});
+}
 async function runStrategyDiscovery(){
  const asset=document.getElementById('btAsset')?.value,cfg=getBTConfig(),stage=document.getElementById('labStage')?.value||'discovery';
  window.__mteActiveLabStage=stage;
@@ -253,6 +274,9 @@ async function runStrategyDiscovery(){
  let panel=document.getElementById('optimisationResults');if(!panel){panel=document.createElement('div');panel.id='optimisationResults';panel.className='box';panel.style.marginTop='15px';document.getElementById('backtestResults').parentNode.insertBefore(panel,document.getElementById('btTrades'))}
  const status=document.getElementById('backtestStatus'),explain=document.getElementById('btExplanation');
  initLabProgress('technical|'+asset);
+ capturePreviousLabRun(panel);
+ panel.dataset.labCompleted='0';
+ renderLabHistory();
  status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';mteEnsureCollapsible(panel);
  try{
   const all=await fetchYahooHistory(asset),filtered=all.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end)),fullDates=filtered.map(x=>x.date),fullCloses=filtered.map(x=>x.close);
@@ -337,6 +361,8 @@ async function runStrategyDiscovery(){
    const b=displayTop[0].result;
    explain.innerHTML='<b>LAB COMPLETE</b><br>'+STRATEGY_LIBRARY[b.type].name+' · '+Object.entries(b.params).map(([k,v])=>k+' '+v).join(' / ')+' · '+b.exitModel+' · '+(b.totalReturn>=0?'+':'')+b.totalReturn.toFixed(2)+'% return.';
   }else explain.textContent='STRATEGY LAB COMPLETE · No valid scenarios were generated.';
+  panel.dataset.labCompleted='1';
+  renderLabHistory();
   status.textContent='LAB COMPLETE';
  }catch(e){console.error('Strategy Lab failed',e);panel.innerHTML='<h3>STRATEGY LAB FAILED</h3><div class="sub">'+(e?.message||String(e))+'</div>';mteEnsureCollapsible(panel);explain.textContent='STRATEGY LAB FAILED · '+(e?.message||String(e));status.textContent='ERROR'}
 }
@@ -388,8 +414,9 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
  updateLabProgress({robust:0});
  for(const c of top.slice(0,robustTotal)){
   const r=c.result,split=Math.max(120,Math.floor(closes.length*.7));
-  const oos=labScenario(closes.slice(split),dates.slice(split),r.type,r.params,r.exitModel,cfg);
-  const stab=labStability(closes,dates,r,cfg),wf=labWalkForward(closes,dates,r,cfg),cost=labCostSensitivity(closes,dates,r,cfg),reg=labRegimeSummary(closes,dates,r,cfg);
+  const isCloses=closes.slice(0,split),isDates=dates.slice(0,split),oosCloses=closes.slice(split),oosDates=dates.slice(split);
+  const oos=labScenario(oosCloses,oosDates,r.type,r.params,r.exitModel,cfg);
+  const stab=labStability(isCloses,isDates,r,cfg),wf=labWalkForward(isCloses,isDates,r,cfg),cost=labCostSensitivity(oosCloses,oosDates,r,cfg),reg=labRegimeSummary(isCloses,isDates,r,cfg);
   const positiveWF=wf.filter(x=>x.totalReturn>0).length,c2=cost.find(x=>x.mult===2)?.result,c3=cost.find(x=>x.mult===3)?.result;
   const robust=r.trades>=20&&oos&&oos.trades>=5&&(oos.profitFactor||0)>=1.05&&stab.score>=.55&&(wf.length?positiveWF/wf.length>=.5:false)&&c2&&c2.totalReturn>0;
   rows.push({r,oos,stab,wf,positiveWF,c2,c3,reg,robust});
@@ -401,9 +428,11 @@ async function runStrategyRobustness(asset,closes,dates,cfg,f,top,panel,status,e
  rows.sort((a,b)=>(Number(b.robust)-Number(a.robust))||(b.stab.score-a.stab.score)||((b.oos?.profitFactor||0)-(a.oos?.profitFactor||0)));
  const body=rows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+STRATEGY_LIBRARY[x.r.type].name+'</td><td>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</td><td>'+x.r.totalReturn.toFixed(2)+'%</td><td>'+(x.oos?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.oos?.profitFactor||0).toFixed(2)+'</td><td>'+Math.round(x.stab.score*100)+'%</td><td>'+x.positiveWF+'/'+x.wf.length+'</td><td>'+(x.c2?.totalReturn||0).toFixed(2)+'%</td><td>'+(x.c3?.totalReturn||0).toFixed(2)+'%</td><td>'+Object.entries(x.reg).map(([k,v])=>k+': '+v.length+'T/'+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</td><td><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES VALIDATION')+'</b></td></tr>').join('');
  const profiles=rows.map((x,i)=>'<div class="box" style="margin-top:10px"><h4>CANDIDATE '+(i+1)+' · '+STRATEGY_LIBRARY[x.r.type].name+'</h4><div class="row"><span>Parameters</span><b>'+Object.entries(x.r.params).map(([k,v])=>k+'='+v).join(' · ')+'</b></div><div class="row"><span>In-sample / OOS return</span><b>'+x.r.totalReturn.toFixed(2)+'% / '+(x.oos?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>OOS PF / trades</span><b>'+(x.oos?.profitFactor||0).toFixed(2)+' / '+(x.oos?.trades||0)+'</b></div><div class="row"><span>Parameter stability</span><b>'+Math.round(x.stab.score*100)+'% · '+x.stab.profitable+'/'+x.stab.total+' neighbours profitable</b></div><div class="row"><span>Walk-forward</span><b>'+x.positiveWF+'/'+x.wf.length+' positive windows</b></div><div class="row"><span>Cost sensitivity</span><b>2× '+(x.c2?.totalReturn||0).toFixed(2)+'% · 3× '+(x.c3?.totalReturn||0).toFixed(2)+'%</b></div><div class="row"><span>Regime returns</span><b>'+Object.entries(x.reg).map(([k,v])=>k+' '+v.reduce((a,z)=>a+z,0).toFixed(1)+'%').join(' · ')+'</b></div><div class="row"><span>Candidate status</span><b>'+(x.robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'</b></div></div>').join('');
- panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS & VALIDATION</h3><div class="row"><span>Validation candidates</span><b>'+rows.length+'</b></div><div class="sub" style="margin:10px 0">Validation separates historical fit from robustness: 70/30 out-of-sample testing, parameter stability, rolling walk-forward consistency, regime behaviour and 1×/1.5×/2×/3× execution-cost sensitivity.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>IS RETURN</th><th>OOS RETURN</th><th>OOS PF</th><th>STABILITY</th><th>WF POSITIVE</th><th>2× COST</th><th>3× COST</th><th>REGIME</th><th>STATUS</th></tr></thead><tbody>'+body+'</tbody></table></div>'+profiles;mteEnsureCollapsible(panel);
+ panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · STAGE 3 · ROBUSTNESS & VALIDATION</h3><div class="row"><span>Validation candidates</span><b>'+rows.length+'</b></div><div class="sub" style="margin:10px 0">Validation separates historical fit from robustness: 70/30 out-of-sample testing, in-sample parameter stability, rolling-window validation, in-sample regime behaviour and 1×/1.5×/2×/3× execution-cost sensitivity on the OOS holdout.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>STRATEGY</th><th>PARAMETERS</th><th>IS RETURN</th><th>OOS RETURN</th><th>OOS PF</th><th>STABILITY</th><th>WF POSITIVE</th><th>2× COST</th><th>3× COST</th><th>REGIME</th><th>STATUS</th></tr></thead><tbody>'+body+'</tbody></table></div>'+profiles;mteEnsureCollapsible(panel);
  if(rows[0])explain.innerHTML='<b>ROBUSTNESS COMPLETE</b><br>'+STRATEGY_LIBRARY[rows[0].r.type].name+' · OOS PF '+(rows[0].oos?.profitFactor||0).toFixed(2)+' · stability '+Math.round(rows[0].stab.score*100)+'% · '+(rows[0].robust?'ROBUST CANDIDATE':'REQUIRES FURTHER VALIDATION')+'.';
  else explain.textContent='ROBUSTNESS COMPLETE · No validation candidates were generated.';
+ panel.dataset.labCompleted='1';
+ renderLabHistory();
  status.textContent='ROBUSTNESS COMPLETE';
 }
 function updateStrategyFamilyCount(){
