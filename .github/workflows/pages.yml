@@ -27,7 +27,7 @@ jobs:
           mkdir -p /tmp/mte-preview
           unzip -o MTE_ENGINE_PREVIEW.zip -d /tmp/mte-preview
           tar -xf /tmp/mte-preview/artifact.tar -C /tmp/mte-preview
-          HTML="$(find /tmp/mte-preview -name 'MTE_ENGINE_PREVIEW.html' -type f | head -1)"
+          HTML="$(find /tmp/mte-preview -name 'index.html' -type f | head -1)"
           if [ -z "$HTML" ]; then
             echo "MTE_ENGINE_PREVIEW.html not found in archive"
             find /tmp/mte-preview -maxdepth 3 -type f
