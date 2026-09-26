@@ -252,7 +252,7 @@ function capturePreviousLabRun(panel){
  if(!panel||panel.dataset.labCompleted!=='1')return;
  const body=panel.querySelector(':scope > .mte-collapse-body'),html=body?body.innerHTML:panel.innerHTML;
  if(!html||html.includes('Preparing ')||html.includes('Running '))return;
- saveLabHistoryEntry({id:Date.now(),timestamp:new Date().toISOString(),stage:window.__strategyLabStage||document.getElementById('labStage')?.value||'discovery',path:window.__strategyLabPath||'technical',asset:document.getElementById('btAsset')?.value||'',html});
+ saveLabHistoryEntry({id:Date.now(),timestamp:new Date().toISOString(),stage:panel.dataset.labStage||window.__strategyLabStage||'discovery',path:panel.dataset.labPath||window.__strategyLabPath||'technical',asset:panel.dataset.labAsset||'',html});
 }
 function renderLabHistory(){
  let box=document.getElementById('strategyLabHistory'),anchor=document.getElementById('optimisationResults');
@@ -276,6 +276,9 @@ async function runStrategyDiscovery(){
  initLabProgress('technical|'+asset);
  capturePreviousLabRun(panel);
  panel.dataset.labCompleted='0';
+ panel.dataset.labStage=stage;
+ panel.dataset.labPath=window.__strategyLabPath||'technical';
+ panel.dataset.labAsset=asset;
  renderLabHistory();
  status.textContent='LAB RUNNING';panel.innerHTML='<h3>TECHNICAL STRATEGY LAB · '+stage.toUpperCase()+'</h3><div class="sub">Preparing '+asset+'…</div>';mteEnsureCollapsible(panel);
  try{
