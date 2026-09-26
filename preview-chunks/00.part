@@ -114,7 +114,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
     <div><h3 style="margin:0">TECHNICAL STRATEGY LAB</h3><div class="sub">Stage 1 discovers strategy families. Stage 2 deeply optimises the strongest candidates. Stage 3 tests parameter and rolling-window robustness.</div></div>
     <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle Strategy Lab filters" title="Toggle filters">⌃</button>
   </div>
-  <button type="button" onclick="runStrategyLab()" class="mte-lab-run-btn primary" style="margin-top:12px">RUN STRATEGY LAB</button>
+  <button type="button" onclick="runStrategyDiscovery()" class="mte-lab-run-btn primary" style="margin-top:12px">RUN STRATEGY LAB</button>
   <div class="control-grid" style="margin-top:12px">
     <label><span>LAB STAGE</span><select id="labStage"><option value="discovery">STAGE 1 · STRATEGY DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select></label>
     <label><span>MIN TRADES</span><input id="optMinTrades" type="number" min="0" step="1" value="20"></label>
