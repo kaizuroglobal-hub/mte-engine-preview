@@ -111,15 +111,15 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
  </div>
  <div class="box" id="technicalOptimiserControls" style="margin-top:15px">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">This is the research and optimisation layer below the normal trading/backtesting controls. The strategy selected above remains separate.</div></div>
+    <div><h3 style="margin:0">STRATEGY LAB WORKFLOW</h3><div class="sub">This is the research and optimisation layer for the selected strategy. Technical research discovers supporting price-based components; Expanded MTE research tests the core macro / cross-asset architecture.</div></div>
     <button type="button" onclick="toggleTechnicalOptimiserFilters()" id="technicalOptimiserToggle" class="mte-collapse-toggle" aria-label="Toggle advanced Strategy Lab settings" title="Toggle advanced settings">⌄</button>
   </div>
 
   <div style="margin-top:14px;padding:12px;border:1px solid #d9dee5;border-radius:6px;background:#fafbfc">
     <div style="font-size:11px;font-weight:800;margin-bottom:8px">STEP 1 · RESEARCH ENGINE</div>
     <div id="strategyLabPath" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')">TECHNICAL STRATEGY LAB</button>
-      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')">EXPANDED MTE LAB</button>
+      <button type="button" class="primary" data-lab-path="technical" onclick="setStrategyLabPath('technical')" style="text-align:left;padding:9px 12px"><b>TECHNICAL STRATEGY LAB</b><br><span class="sub">Price-based signal discovery & optimisation</span></button>
+      <button type="button" class="secondary" data-lab-path="expanded" onclick="setStrategyLabPath('expanded')" style="text-align:left;padding:9px 12px"><b>EXPANDED MTE LAB</b><br><span class="sub">Core macro / cross-asset research</span></button>
     </div>
 
     <div style="font-size:11px;font-weight:800;margin:15px 0 8px">STEP 2 · RESEARCH STAGE</div>
@@ -129,7 +129,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
       <button type="button" data-lab-stage="robust" onclick="setStrategyLabStage('robust')" style="text-align:left;padding:10px;border:1px solid #cfd6de;border-radius:5px;background:#fff;cursor:pointer"><b>3 · VALIDATE</b><br><span class="sub">Test OOS robustness</span></button>
     </div>
 
-    <div id="strategyLabRunState" class="sub" style="margin-top:10px">Technical · Stage 1 · Discovery</div>
+    <div id="strategyLabRunState" class="sub" style="margin-top:10px">Technical Strategy Lab · Stage 1 · Discovery</div>
     <button type="button" id="strategyLabRun" class="primary" onclick="runCurrentStrategyLabStage()" style="margin-top:10px;width:100%;padding:11px">RUN STAGE 1 · DISCOVERY</button>
   </div>
 
