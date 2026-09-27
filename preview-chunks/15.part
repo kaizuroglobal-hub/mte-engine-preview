@@ -726,8 +726,10 @@
   };
 
   function init(){
-    addExpandedUI();
+    // Correlation is a standalone research view. Initialise it first so failures
+    // in the separate Strategy Lab UI cannot prevent the Correlation page from rendering.
     window.mteOpenCorrelationLab();
+    try{ addExpandedUI(); }catch(e){ console.warn('MTE Strategy Lab UI init skipped:',e); }
     const s=document.getElementById('mteUniverseStatus');
     if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
   }
