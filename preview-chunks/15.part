@@ -18,6 +18,7 @@
     MOMENTUM_VOLATILITY:{name:'Momentum + Volatility',desc:'Momentum weighted by risk-adjusted strength',params:'lookback/volLookback'},
     BREAKOUT_REGIME:{name:'Breakout + Regime',desc:'Price breakout filtered by cross-asset risk regime',params:'lookback/regimeLookback'},
     VALUE_MOMENTUM_PROXY:{name:'Value + Momentum Proxy',desc:'Price-only value proxy combined with momentum; true fundamental value requires fundamentals',params:'valueLookback/momentumLookback'},
+    MACTECH:{name:'MACTECH · Macro + Technical',desc:'Macro transmission proxy is mandatory; trend, momentum, volatility, breakout and cross-asset confirmation determine the trade.',params:'fast/slow/momentum/vol/breakout/corr/macroMin/techMin'},
     CARRY:{name:'Carry',desc:'Requires forward/yield data; included in architecture but not scored from close-only data',params:'forward/yield data required'},
     FUNDAMENTAL_VALUE:{name:'Fundamental Value',desc:'Requires valuation/fundamental data; included in architecture but not scored from close-only data',params:'valuation data required'}
   };
@@ -288,6 +289,38 @@
         return out;
       },cfg,'MTE · Breakout + Regime');
     }
+    if(type==='MACTECH'){
+      const target=ds.symbols.includes(p.target)?p.target:ds.symbols[0];
+      const peers=ds.symbols.filter(s=>['SPY','TLT','GLD','USO','UUP','BTC-USD','ETH-USD'].includes(s)&&s!==target);
+      const fast=p.fast||10,slow=p.slow||50,ml=p.momentum||20,vl=p.vol||20,bl=p.breakout||20,cl=p.corr||60;
+      const macroMin=p.macroMin||.55,techMin=p.techMin||.65;
+      const meanA=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+      const sdA=a=>a.length>1?Math.sqrt(meanA(a.map(x=>(x-meanA(a))**2))):0;
+      const corrA=(a,b)=>{const n=Math.min(a.length,b.length);if(n<20)return 0;const aa=a.slice(-n),bb=b.slice(-n),ma=meanA(aa),mb=meanA(bb);let num=0,da=0,db=0;for(let j=0;j<n;j++){const x=aa[j]-ma,y=bb[j]-mb;num+=x*y;da+=x*x;db+=y*y;}return da&&db?num/Math.sqrt(da*db):0;};
+      const ret=(arr,i,n)=>i>=n?arr[i]/arr[i-n]-1:0;
+      const dayRet=(arr,i)=>i>0?arr[i]/arr[i-1]-1:0;
+      const vol=(arr,i,n)=>{const r=[];for(let j=Math.max(1,i-n+1);j<=i;j++)r.push(dayRet(arr,j));return sdA(r)*Math.sqrt(252);};
+      return backtestWeights(ds,(i,rm,ser,syms)=>{
+        if(!ser[target]||i<Math.max(slow,ml,vl,bl,cl)+2)return {};
+        const px=ser[target][i],fastMA=meanA(ser[target].slice(i-fast,i)),slowMA=meanA(ser[target].slice(i-slow,i));
+        const dir=fastMA>=slowMA?1:-1,m=ret(ser[target],i,ml),v=vol(ser[target],i,vl),pv=vol(ser[target],i,Math.min(cl,vl*3)),vr=pv>0?v/pv:1;
+        const hi=Math.max(...ser[target].slice(i-bl,i)),lo=Math.min(...ser[target].slice(i-bl,i)),bo=px>=hi?1:px<=lo?-1:0;
+        let agree=0,wt=0,shock=0,shockN=0;
+        for(const s of peers){
+          if(!ser[s])continue;
+          const tr=[],pr=[];for(let j=Math.max(1,i-cl+1);j<=i;j++){tr.push(dayRet(ser[target],j));pr.push(dayRet(ser[s],j));}
+          const cc=corrA(tr,pr),pm=ret(ser[s],i,ml);if(!Number.isFinite(pm)||Math.abs(cc)<.15)continue;
+          const w=Math.abs(cc);agree+=(Math.sign(pm)===(Math.sign(cc)*dir)?1:0)*w;wt+=w;
+          const recent=[],base=[];for(let j=Math.max(1,i-10);j<=i;j++)recent.push(Math.abs(dayRet(ser[s],j)));for(let j=Math.max(1,i-cl);j<=i-11;j++)base.push(Math.abs(dayRet(ser[s],j)));
+          if(base.length>10&&meanA(base)>0){shock+=meanA(recent)/meanA(base);shockN++;}
+        }
+        const breadth=wt?agree/wt:0,shockRatio=shockN?shock/shockN:1,shockScore=Math.max(0,Math.min(1,(shockRatio-.8)/1.2)),macroScore=.65*breadth+.35*shockScore;
+        const momentumScore=Math.max(0,Math.min(1,Math.abs(m)/.08)),breakoutScore=bo===dir?1:0,volScore=vr>=1.05&&vr<=3?Math.min(1,(vr-1.05)/.95):vr>3?.5:0;
+        const techScore=.35*(dir===Math.sign(m||dir)?1:0)+.25*momentumScore+.2*breakoutScore+.2*volScore;
+        if(wt<.5||macroScore<macroMin||techScore<techMin)return {};
+        return {[target]:dir};
+      },cfg,'MTE · MACTECH · Strategy 003');
+    }
     if(type==='VALUE_MOMENTUM_PROXY'){
       const vl=p.valueLookback||756,ml=p.momentumLookback||252;
       return backtestWeights(ds,(i,rm,ser,syms)=>{
@@ -304,7 +337,7 @@
     const anchor=document.getElementById('optimisationResults')||document.getElementById('backtestResults')||document.body;
     const box=document.createElement('div');box.id='mteExpandedLab';box.className='box';box.style.marginTop='15px';box.style.display='none';
     const groups={
-      'MACRO / CROSS-ASSET':['TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CROSS_SECTIONAL_MOMENTUM','RELATIVE_STRENGTH_ROTATION','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','PAIRS_SPREAD','COINTEGRATION','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','TREND_VOLATILITY_MACRO','MOMENTUM_VOLATILITY','BREAKOUT_REGIME','VALUE_MOMENTUM_PROXY'],
+      'MACRO / CROSS-ASSET':['MACTECH','TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CROSS_SECTIONAL_MOMENTUM','RELATIVE_STRENGTH_ROTATION','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','PAIRS_SPREAD','COINTEGRATION','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','TREND_VOLATILITY_MACRO','MOMENTUM_VOLATILITY','BREAKOUT_REGIME','VALUE_MOMENTUM_PROXY'],
       'DATA-DEPENDENT / RESERVED':['CARRY','FUNDAMENTAL_VALUE']
     };
     box.innerHTML='<h3>EXPANDED MTE RESEARCH</h3><div class="sub">Multi-asset research across positively correlated, negatively correlated and low-correlation relationships. The workflow above controls the stage and run action.</div><div id="mteStrategyChecks"></div><div class="row" style="margin-top:12px"><span>Universe</span><b id="mteUniverseStatus">Loading available cached assets…</b></div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="mteSelectAll" class="secondary" data-mte-action="select-all">ALL STRATEGIES</button><button type="button" id="mteSelectCore" class="secondary" data-mte-action="select-core">CORE MACRO SET</button></div><div class="sub" style="margin-top:10px">Carry and fundamental value are reserved until forward/yield/fundamental fields are added. They remain visible in the architecture but are not falsely backtested from close-only data.</div><select id="mteLabStage" style="display:none"><option value="discovery">STAGE 1 · DISCOVERY</option><option value="deep">STAGE 2 · DEEP OPTIMISATION</option><option value="robust">STAGE 3 · ROBUSTNESS</option></select><div id="mteExpandedResults" class="box" style="margin-top:15px"><h3>MTE EXPANDED LAB RESULTS</h3><div id="mteExpandedResultsBody"><div class="sub">No expanded MTE Lab run yet.</div></div></div>';
@@ -333,7 +366,7 @@
         return;
       }
       if(action==='select-core'){
-        const core=['TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','VALUE_MOMENTUM_PROXY'];
+        const core=['MACTECH','TIME_SERIES_MOMENTUM','CROSS_ASSET_MOMENTUM','CORRELATION_CONFIRMATION','NEGATIVE_CORRELATION_DIVERGENCE','LOW_CORRELATION_TREND','CORRELATION_REGIME','RISK_ON_OFF','MACRO_REGIME_ROTATION','VOL_TARGET_TREND','VALUE_MOMENTUM_PROXY'];
         box.querySelectorAll('.mte-strategy-check').forEach(x=>{x.checked=!x.disabled && core.includes(x.value);});
         btn.blur();
       }
@@ -341,6 +374,7 @@
   }
 
   const COARSE={
+    MACTECH:[{fast:10,slow:50,momentum:20,vol:20,breakout:20,corr:60,macroMin:.55,techMin:.65},{fast:10,slow:50,momentum:63,vol:20,breakout:55,corr:60,macroMin:.55,techMin:.65},{fast:20,slow:100,momentum:63,vol:40,breakout:55,corr:120,macroMin:.60,techMin:.65}],
     TIME_SERIES_MOMENTUM:[{lookback:21},{lookback:63},{lookback:126},{lookback:252}],
     CROSS_SECTIONAL_MOMENTUM:[{lookback:63,topPct:.2},{lookback:126,topPct:.25},{lookback:252,topPct:.25}],
     RELATIVE_STRENGTH_ROTATION:[{lookback:63,topN:2},{lookback:126,topN:3},{lookback:252,topN:3}],
@@ -360,6 +394,7 @@
     VALUE_MOMENTUM_PROXY:[{valueLookback:504,momentumLookback:126},{valueLookback:756,momentumLookback:252},{valueLookback:1008,momentumLookback:252}]
   };
   const DEEP={
+    MACTECH:[10,20].flatMap(fast=>[50,75,100].filter(slow=>slow>fast).flatMap(slow=>[20,42,63].flatMap(momentum=>[20,40,60].flatMap(vol=>[20,55,100].map(breakout=>({fast,slow,momentum,vol,breakout,corr:60,macroMin:.55,techMin:.65})))))).slice(0,180),
     TIME_SERIES_MOMENTUM:[21,42,63,84,126,189,252].map(lookback=>({lookback})),
     CROSS_SECTIONAL_MOMENTUM:[63,84,126,189,252].flatMap(lookback=>[.15,.2,.25,.33].map(topPct=>({lookback,topPct}))),
     RELATIVE_STRENGTH_ROTATION:[63,84,126,189,252].flatMap(lookback=>[1,2,3,4].map(topN=>({lookback,topN}))),
