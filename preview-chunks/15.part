@@ -484,14 +484,14 @@
           const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win===9999?100000:win);
           if(p.samples<20)continue;
           matrix[a][b]=matrix[b][a]=p;
-          if(Math.abs(p.corr)>=minR)pairs.push({a,b,...p});
+          if(Math.abs(p.corr)>=minR){const resp=forwardResponse(p.ra,p.rb,1.5);pairs.push({a,b,...p,probability:resp.win5,response5:resp.five});}
         }
       }
-      pairs.sort((a,b)=>(Math.abs(b.corr)-Math.abs(a.corr))||(b.stability-a.stability));
+      pairs.sort((a,b)=>(b.probability-a.probability)||(Math.abs(b.corr)-Math.abs(a.corr))||(b.stability-a.stability));
       const shown=pairs.slice(0,100);
       const fmt=x=>x==null?'—':(x.corr>=0?'+':'')+x.corr.toFixed(2);
-      const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(20,150,60,'+(0.18+.62*alpha)+')':'rgba(210,40,50,'+(0.18+.62*alpha)+')';};
-      heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+
+      const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(0,170,65,'+(0.28+.70*alpha)+')':'rgba(210,40,50,'+(0.20+.70*alpha)+')';};
+      const probabilityTop=shown.slice(0,10);heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+'<div class="mte-corr-prob-wrap"><div class="mte-corr-prob-title">TOP RELATIONSHIP OPPORTUNITIES · PROBABILITY</div><div class="mte-corr-prob-row">'+probabilityTop.map((p,i)=>'<button type="button" class="mte-corr-prob" data-corr-a="'+p.a+'" data-corr-b="'+p.b+'"><span class="rank">'+(i+1)+'</span><b>'+p.a+' ↔ '+p.b+'</b><strong>'+p.probability.toFixed(1)+'%</strong><small>5-bar aligned response · r '+(p.corr>=0?'+':'')+p.corr.toFixed(2)+'</small></button>').join('')+'</div></div>'+
         '<table style="border-collapse:collapse;font-size:10px;min-width:'+(symbols.length*58+100)+'px"><thead><tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px">ASSET</th>'+symbols.map(s=>'<th style="padding:5px;writing-mode:vertical-rl;transform:rotate(180deg);height:95px">'+s+'</th>').join('')+'</tr></thead><tbody>'+
         symbols.map(a=>'<tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px;text-align:left">'+a+'</th>'+symbols.map(b=>{const p=matrix[a][b];return '<td style="background:'+(a===b?'#111':bg(p))+';color:#fff;border:1px solid #333;text-align:center;padding:6px;cursor:'+(p?'pointer':'default')+'" data-corr-a="'+a+'" data-corr-b="'+b+'">'+(a===b?'—':fmt(p))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';
       heat.querySelectorAll('[data-corr-a]').forEach(td=>td.addEventListener('click',()=>{
@@ -722,4 +722,14 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
-</script>
+<style>
+.mte-corr-prob-wrap{margin:12px 0 14px;padding:10px;border:1px solid #dfe3e8;border-radius:5px;background:#f8fafb}
+.mte-corr-prob-title{font-size:9px;font-weight:900;margin-bottom:8px;letter-spacing:.04em}
+.mte-corr-prob-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
+.mte-corr-prob{min-width:165px;text-align:left;border:1px solid #cfd6dd;background:#fff;border-radius:4px;padding:9px;cursor:pointer}
+.mte-corr-prob:hover{border-color:#111}
+.mte-corr-prob .rank{display:inline-block;font-size:9px;margin-right:5px;color:#66717b}
+.mte-corr-prob b{font-size:10px}
+.mte-corr-prob strong{display:block;font-size:18px;margin-top:5px;color:#07883c}
+.mte-corr-prob small{display:block;font-size:8px;color:#697581;margin-top:2px}
+</style></script>
