@@ -540,7 +540,7 @@
     box.querySelector('#mteStrategyChecks').innerHTML=html;
     anchor.parentNode.insertBefore(box,anchor);
     const expandedResults=document.getElementById('mteExpandedResults');
-    if(expandedResults)mteEnsureCollapsible(expandedResults);
+    if(expandedResults && typeof mteEnsureCollapsible==='function')mteEnsureCollapsible(expandedResults);
     // Use delegated capture handlers so these controls remain reliable even when other lab UI
     // handlers or dynamic result rendering intercept normal button events.
     box.addEventListener('click',(event)=>{
