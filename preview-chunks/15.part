@@ -481,16 +481,18 @@
     if(/GLD|SLV|USO|DBC|GC=F|CL=F|HG=F|XLE/.test(s))return 'COMMODITY';
     return 'EQUITY';
   }
-  async function mteRunCorrelationLab(){
-    correlationLabHtml();
-    const cfg=getBTConfig(),win=Number(document.getElementById('mteCorrWindow').value||60),cls=document.getElementById('mteCorrClass').value,minR=Number(document.getElementById('mteCorrMin').value||0);
-    const status=document.getElementById('mteCorrelationStatus'),heat=document.getElementById('mteCorrelationHeat'),detail=document.getElementById('mteCorrelationDetail'),ranking=document.getElementById('mteCorrelationRanking');
+  async function mteRunCorrelationLab(options){
+    const headless=!!(options&&options.headless);
+    if(!headless)correlationLabHtml();
+    const cfg=getBTConfig(),win=Number(headless?60:(document.getElementById('mteCorrWindow')?.value||60)),cls=headless?'ALL':document.getElementById('mteCorrClass').value,minR=Number(headless?.30:(document.getElementById('mteCorrMin')?.value||0));
+    const noop={textContent:'',innerHTML:''};
+    const status=headless?noop:document.getElementById('mteCorrelationStatus'),heat=headless?noop:document.getElementById('mteCorrelationHeat'),detail=headless?noop:document.getElementById('mteCorrelationDetail'),ranking=headless?noop:document.getElementById('mteCorrelationRanking');
     status.textContent='Loading existing MTE cached history…';heat.innerHTML='<div class="sub">Calculating pairwise return correlations…</div>';
     try{
       const ds=await loadCorrelationUniverse(cfg);
       const symbols=ds.symbols.filter(s=>cls==='ALL'||correlationClass(s)===cls);
       const pairs=[],matrix={};
-      const threshold=Math.max(0,Number(document.getElementById('mteCorrThreshold')?.value||75));
+      const threshold=Math.max(0,Number(headless?75:(document.getElementById('mteCorrThreshold')?.value||75)));
       const supportedDurations=[
         {id:'5M',ms:5*60*1000},{id:'15M',ms:15*60*1000},{id:'1H',ms:60*60*1000},
         {id:'4H',ms:4*60*60*1000},{id:'12H',ms:12*60*60*1000},
@@ -832,9 +834,8 @@
   };
 
   function init(){
-    // Correlation is a standalone research view. Initialise it first so failures
-    // in the separate Strategy Lab UI cannot prevent the Correlation page from rendering.
-    window.mteOpenCorrelationLab();
+    // CORRELATION 01 owns the trader-facing Correlation view. The legacy research
+    // renderer remains callable for research compatibility, but must not replace the trading workflow on startup.
     try{ addExpandedUI(); }catch(e){ console.warn('MTE Strategy Lab UI init skipped:',e); }
     const s=document.getElementById('mteUniverseStatus');
     if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
