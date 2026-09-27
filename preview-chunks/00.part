@@ -43,6 +43,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 <button class="active strategy-btn" data-strategy="macro">MACRO 01</button>
 <button class="strategy-btn" data-strategy="technical">TECHNICAL 01</button>
 <button class="strategy-btn" data-strategy="mactech">MACTECH 01</button>
+<button class="strategy-btn" data-strategy="correlation">CORRELATION 01</button>
 </div>
  <div class="status"><i></i>LIVE DATA · PAPER ONLY · ENGINE READY</div>
 </header>
@@ -98,7 +99,7 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
  <section id="backtest" class="view panel"><div class="panelhead"><div><h2>Historical Evidence</h2><div class="sub">Run the selected strategy against any asset in the 108-asset live historical universe. Macro 01 and Technical 01 use separate strategy logic.</div></div><b id="backtestStatus">READY</b></div>
  <div class="box backtest-controls">
   <div class="control-grid">
-   <label><span>STRATEGY</span><select id="btStrategy"><option value="macro">MACRO 01 · Strategy 001</option><option value="technical">TECHNICAL 01 · Strategy 002</option><option value="mactech">MACTECH · Strategy 003</option></select></label>
+   <label><span>STRATEGY</span><select id="btStrategy"><option value="macro">MACRO 01 · Strategy 001</option><option value="technical">TECHNICAL 01 · Strategy 002</option><option value="mactech">MACTECH · Strategy 003</option><option value="correlation">CORRELATION 01 · Strategy 004</option></select></label>
    <label><span>ASSET · 108 AVAILABLE</span><select id="btAsset"><option value="QQQ">QQQ — Nasdaq 100 ETF</option><option value="SPY">SPY — S&P 500 ETF</option><option value="IWM">IWM — Russell 2000 ETF</option><option value="DIA">DIA — Dow Jones ETF</option><option value="EEM">EEM — Emerging Markets ETF</option><option value="FXI">FXI — China Large Cap ETF</option><option value="KWEB">KWEB — China Internet ETF</option><option value="SOXX">SOXX — Semiconductors ETF</option><option value="XLF">XLF — Financials ETF</option><option value="XLE">XLE — Energy ETF</option><option value="XLI">XLI — Industrials ETF</option><option value="XLK">XLK — Technology ETF</option><option value="XLV">XLV — Healthcare ETF</option><option value="XLP">XLP — Consumer Staples ETF</option><option value="TLT">TLT — 20+ Year Treasury ETF</option><option value="HYG">HYG — High Yield Bond ETF</option><option value="LQD">LQD — Investment Grade Bond ETF</option><option value="GLD">GLD — Gold ETF</option><option value="SLV">SLV — Silver ETF</option><option value="USO">USO — Oil ETF</option><option value="COPX">COPX — Copper Miners ETF</option><option value="AAPL">AAPL — Apple</option><option value="MSFT">MSFT — Microsoft</option><option value="NVDA">NVDA — Nvidia</option><option value="AMZN">AMZN — Amazon</option><option value="GOOGL">GOOGL — Alphabet</option><option value="META">META — Meta</option><option value="AVGO">AVGO — Broadcom</option><option value="TSM">TSM — TSMC</option><option value="AMD">AMD — AMD</option><option value="INTC">INTC — Intel</option><option value="ORCL">ORCL — Oracle</option><option value="CRM">CRM — Salesforce</option><option value="ADBE">ADBE — Adobe</option><option value="NFLX">NFLX — Netflix</option><option value="TSLA">TSLA — Tesla</option><option value="JPM">JPM — JPMorgan</option><option value="BAC">BAC — Bank of America</option><option value="GS">GS — Goldman Sachs</option><option value="MS">MS</option><option value="C">C — Citigroup</option><option value="XOM">XOM — Exxon Mobil</option><option value="CVX">CVX — Chevron</option><option value="COP">COP — ConocoPhillips</option><option value="CAT">CAT — Caterpillar</option><option value="DE">DE — Deere</option><option value="BA">BA — Boeing</option><option value="GE">GE — GE Aerospace</option><option value="WMT">WMT — Walmart</option><option value="COST">COST — Costco</option><option value="HD">HD — Home Depot</option><option value="MCD">MCD — McDonald's</option><option value="NKE">NKE — Nike</option><option value="V">V — Visa</option><option value="MA">MA — Mastercard</option><option value="UNH">UNH — UnitedHealth</option><option value="JNJ">JNJ — Johnson & Johnson</option><option value="PFE">PFE — Pfizer</option><option value="MRK">MRK — Merck</option><option value="LLY">LLY — Eli Lilly</option><option value="XAU/USD">XAU/USD — Gold Spot</option><option value="XAG/USD">XAG/USD — Silver Spot</option><option value="XG/USD">XG/USD — Copper</option><option value="WTI/USD">WTI/USD — WTI Crude</option><option value="XBR/USD">XBR/USD — Brent Crude</option><option value="EUR/USD">EUR/USD — EUR/USD</option><option value="GBP/USD">GBP/USD — GBP/USD</option><option value="AUD/USD">AUD/USD — AUD/USD</option><option value="NZD/USD">NZD/USD — NZD/USD</option><option value="USD/JPY">USD/JPY — USD/JPY</option><option value="USD/CAD">USD/CAD — USD/CAD</option><option value="USD/CHF">USD/CHF — USD/CHF</option><option value="EUR/JPY">EUR/JPY — EUR/JPY</option><option value="BTC/USD">BTC/USD — Bitcoin</option><option value="ETH/USD">ETH/USD — Ethereum</option><option value="SOL/USD">SOL/USD — Solana</option><option value="XRP/USD">XRP/USD — XRP</option><option value="BNB/USD">BNB/USD — BNB</option><option value="DOGE/USD">DOGE/USD — Dogecoin</option><option value="ADA/USD">ADA/USD — Cardano</option><option value="AVAX/USD">AVAX/USD — Avalanche</option><option value="LINK/USD">LINK/USD — Chainlink</option><option value="MSTR">MSTR — Strategy</option><option value="COIN">COIN — Coinbase</option><option value="HOOD">HOOD — Robinhood</option><option value="PLTR">PLTR — Palantir</option><option value="ARM">ARM — Arm Holdings</option><option value="MU">MU — Micron</option><option value="QCOM">QCOM — Qualcomm</option><option value="ASML">ASML — ASML</option><option value="LRCX">LRCX — Lam Research</option><option value="AMAT">AMAT — Applied Materials</option><option value="FCX">FCX — Freeport-McMoRan</option><option value="RIO">RIO — Rio Tinto</option><option value="BHP">BHP — BHP</option><option value="VALE">VALE — Vale</option><option value="GLEN">GLEN — Glencore</option><option value="RIO.AU">RIO.AU — Rio Tinto Australia</option><option value="CBA.AU">CBA.AU — Commonwealth Bank Australia</option><option value="BHP.AU">BHP.AU — BHP Australia</option><option value="FMG.AU">FMG.AU — Fortescue</option><option value="WBC.AU">WBC.AU — Westpac Australia</option><option value="NAB.AU">NAB.AU — NAB Australia</option><option value="ANZ.AU">ANZ.AU — ANZ Australia</option><option value="CSL.AU">CSL.AU — CSL Australia</option><option value="WES.AU">WES.AU — Wesfarmers Australia</option><option value="TLS.AU">TLS.AU — Telstra Australia</option><option value="VIXY">VIXY — VIX Short-Term Futures ETF</option></select></label>
    <label><span>START DATE</span><input id="btStart" type="date"></label>
    <label><span>END DATE</span><input id="btEnd" type="date"></label>
@@ -314,14 +315,27 @@ const strategyData={
  mactech:{
   eyebrow:'MACTECH · STRATEGY 003',
   title:'Macro + Technical Trading',
-  sub:'Macro event/transmission → cross-asset confirmation → trend → momentum → volatility → breakout → position.',
+  sub:'Macro context → trend → momentum → volatility → breakout → position. Cross-asset data is context only.',
   panel:'MACTECH · Qualified Opportunities',
-  panelSub:'Macro context is mandatory; technical confirmation determines whether the market is actually tradable.',
+  panelSub:'Macro context is mandatory; technical confirmation determines whether the market is tradable.',
   count:0,
   metrics:[
    ['Macro input','MANDATORY','Technical confirmation','MANDATORY'],
    ['Core signals','Trend + momentum + breakout','Risk filter','Volatility regime'],
-   ['Confirmation','Cross-asset','Trade lifecycle','Entry → manage → exit → re-entry']
+   ['Cross-asset','Context only','Trade lifecycle','Entry → manage → exit → re-entry']
+  ]
+ },
+ correlation:{
+  eyebrow:'CORRELATION 01 · STRATEGY 004',
+  title:'Correlation / Relationship Trading',
+  sub:'Cross-asset relationship → correlation regime → lead/lag → divergence → response → position.',
+  panel:'CORRELATION 01 · Qualified Opportunities',
+  panelSub:'100% relationship-driven. No macro, trend, momentum or volatility signal is used as an entry condition.',
+  count:0,
+  metrics:[
+   ['Primary edge','Asset relationship','Signal','Correlation / divergence'],
+   ['Confirmation','Lead / lag response','Entry','Relationship dislocation'],
+   ['Risk','Relationship failure','Trade lifecycle','Entry → manage → exit → re-entry']
   ]
  }
 };
