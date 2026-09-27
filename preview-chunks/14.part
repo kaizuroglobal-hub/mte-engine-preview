@@ -506,6 +506,47 @@ function runTechnicalBacktest(symbol,closes,dates,cfg){
  const test=technicalRun(closes.slice(split),dates.slice(split),fast,slow,cfg);
  return {...all,fast,slow,train,test,optimisation:opt};
 }
+function runCorrelationBacktest(symbol,closes,dates,exitModel,cfg,peerData){
+ const trades=[],lookback=Math.max(20,Number(cfg.correlationLookback)||60),minCorr=Number(cfg.correlationMin||0.55),shock=Number(cfg.correlationShock||1.5),holdBars=Math.max(1,Number(cfg.correlationHold)||5);
+ const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+ const sd=a=>a.length>1?Math.sqrt(mean(a.map(x=>(x-mean(a))**2))):0;
+ const ret=(arr,i)=>i>0&&Number.isFinite(arr[i])&&Number.isFinite(arr[i-1])?arr[i]/arr[i-1]-1:NaN;
+ const corr=(a,b)=>{const n=Math.min(a.length,b.length);if(n<20)return 0;const aa=a.slice(-n),bb=b.slice(-n),ma=mean(aa),mb=mean(bb);let num=0,da=0,db=0;for(let j=0;j<n;j++){const x=aa[j]-ma,y=bb[j]-mb;num+=x*y;da+=x*x;db+=y*y;}return da&&db?num/Math.sqrt(da*db):0;};
+ const peers=Object.entries(peerData||{}).filter(([s,a])=>s!==symbol&&Array.isArray(a)&&a.length);
+ const start=lookback+2;
+ for(let i=start;i<closes.length-1;){
+   const targetR=[];for(let j=i-lookback+1;j<=i;j++){const r=ret(closes,j);if(Number.isFinite(r))targetR.push(r);}
+   let best=null;
+   for(const [peer,arr] of peers){
+     const map=new Map((arr||[]).map(x=>[x.date,x.close]));
+     const pr=[];const tr=[];
+     for(let j=Math.max(1,i-lookback+1);j<=i;j++){
+       const trv=ret(closes,j),pv=map.get(dates[j]),pp=map.get(dates[j-1]);
+       const prv=(Number.isFinite(pv)&&Number.isFinite(pp)&&pp)?pv/pp-1:NaN;
+       if(Number.isFinite(trv)&&Number.isFinite(prv)){tr.push(trv);pr.push(prv);}
+     }
+     const c=corr(tr,pr);if(!best||Math.abs(c)>Math.abs(best.corr))best={peer,corr:c,returns:pr};
+   }
+   if(!best||Math.abs(best.corr)<minCorr){i++;continue;}
+   const peerR=best.returns, targetMean=mean(targetR),targetSd=sd(targetR),peerMean=mean(peerR),peerSd=sd(peerR);
+   const tr0=ret(closes,i),pr0=peerR[peerR.length-1];
+   if(!Number.isFinite(tr0)||!Number.isFinite(pr0)||!peerSd){i++;continue;}
+   const targetZ=(tr0-targetMean)/Math.max(targetSd,1e-9),peerZ=(pr0-peerMean)/Math.max(peerSd,1e-9);
+   const expected=best.corr>=0?Math.sign(peerZ): -Math.sign(peerZ);
+   const divergence=Math.abs(peerZ-targetZ);
+   if(Math.abs(peerZ)<shock||divergence<0.5||expected===0){i++;continue;}
+   const direction=expected;
+   let exit=Math.min(closes.length-1,i+holdBars),reason='RELATIONSHIP HORIZON';
+   for(let j=i+1;j<Math.min(closes.length-1,i+holdBars+1);j++){
+     const r=ret(closes,j);if(Number.isFinite(r)&&Math.sign(r)===-direction&&Math.abs(r)>Math.abs(tr0)*1.5){exit=j;reason='RELATIONSHIP FAILURE';break;}
+   }
+   const gross=direction*(closes[exit]/closes[i]-1)*100,net=gross-btCostPct(cfg);
+   trades.push({entryDate:dates[i],exitDate:dates[exit],entry:closes[i],exit:closes[exit],ret:net,bars:exit-i,reason,peer:best.peer,corr:best.corr});
+   i=Math.max(i+1,exit+1);
+ }
+ return summariseTrades(symbol,trades,closes.length,'CORRELATION 01 · Strategy 004',cfg,dates);
+}
+
 function runMacTechBacktest(symbol,closes,dates,exitModel,cfg,proxyData){
  const trades=[],baseCost=btCostPct(cfg);
  const fast=Math.max(3,Number(cfg.fast)||10),slow=Math.max(fast+5,Number(cfg.slow)||50);
@@ -597,7 +638,12 @@ async function runBacktest(){
   let result;
   if(strategy==='macro') result=runMacroBacktest(asset,closes,dates,exit,cfg);
   else if(strategy==='technical') result=runTechnicalBacktest(asset,closes,dates,cfg);
-  else {
+  else if(strategy==='correlation'){
+    const peerSymbols=(typeof backtestUniverse!=='undefined'?backtestUniverse:[]).filter(s=>s!==asset);
+    const peerData={};
+    await Promise.all(peerSymbols.map(async s=>{try{const rows=await fetchYahooHistory(s);peerData[s]=rows.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end));}catch(e){}}));
+    result=runCorrelationBacktest(asset,closes,dates,exit,cfg,peerData);
+  } else {
     const macroSymbols=['SPY','TLT','GLD','USO','UUP','BTC-USD','ETH-USD'].filter(s=>s!==asset);
     const proxyData={};
     await Promise.all(macroSymbols.map(async s=>{try{const rows=await fetchYahooHistory(s);proxyData[s]=rows.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end));}catch(e){}}));
