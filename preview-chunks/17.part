@@ -57,10 +57,44 @@ var OPPS={
  mactech:[
   {id:'MTE-X-000001',asset:'QQQ',name:'Nasdaq 100 ETF',side:'LONG',type:'Macro + technical confluence',evidence:'Independent macro + technical alignment',horizon:'1–24H',status:'WATCH',entry:'Both sides confirm',invalid:'Macro or technical conflict',expected:'Continuation while both remain aligned',why:['Macro regime supportive','Technical structure supportive','Both evidence streams agree','Risk gate pending']}
  ],
- correlation:[
-  {id:'MTE-C-000001',asset:'BTC/USD',name:'Bitcoin',side:'LONG',type:'Relationship dislocation',evidence:'Correlation + divergence + lead/lag',horizon:'1–24H',status:'RESEARCH',entry:'Relationship trigger',invalid:'Relationship failure',expected:'Historical response after dislocation',why:['Relationship identified','Normal correlation measured','Current divergence detected','Lead/lag response available']}
- ]
+ correlation:[]
 };
+async function loadCorrelationStrategyOpportunities(){
+ if(typeof window.mteRunCorrelationLab!=='function')throw new Error('CORRELATION LAB is not available');
+ await window.mteRunCorrelationLab();
+ var ps=window.__mteCorrelationTradeOpportunities||[];
+ OPPS.correlation=ps.map(function(p,i){
+   var leaderReturn=(p.leader===''+p.a?p.ra[p.ra.length-1]:p.rb[p.rb.length-1]);
+   var expected=leaderReturn*(p.corr>=0?1:-1);
+   var side=expected>=0?'LONG':'SHORT';
+   return {
+    id:'MTE-C-'+String(i+1).padStart(4,'0'),
+    asset:p.follower,
+    name:p.leader+' → '+p.follower,
+    side:side,
+    type:'Relationship trade · '+p.direction,
+    evidence:'r '+(p.corr>=0?'+':'')+p.corr.toFixed(2)+' · 5-bar response '+p.probability.toFixed(1)+'% · N='+p.responseN,
+    horizon:'1–24H',
+    status:'RESEARCH',
+    entry:'Leader move → follower response',
+    invalid:'Relationship failure / response does not reassert',
+    expected:(side==='LONG'?'Follower expected higher':'Follower expected lower'),
+    why:[
+      'Leader: '+p.leader,
+      'Follower: '+p.follower,
+      'Relationship: '+p.direction,
+      'Historical 5-bar response: '+p.probability.toFixed(1)+'% (N='+p.responseN+')'
+    ],
+    leader:p.leader,
+    follower:p.follower,
+    correlation:p.corr,
+    probability:p.probability,
+    response5:p.response5,
+    responseN:p.responseN
+   };
+ });
+ return OPPS.correlation;
+}
 var selected='all';
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
 function rows(){var a=[];Object.keys(OPPS).forEach(function(k){OPPS[k].forEach(function(o){a.push({s:k,o:o});});});return selected==='all'?a:a.filter(function(x){return x.s===selected;});}
@@ -81,7 +115,7 @@ d.scrollIntoView({behavior:'smooth',block:'start'});
 function bind(){
 document.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-detail'));};});
 document.querySelectorAll('[data-enter]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-enter'));};});
-document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});renderList();};});
+document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=async function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});if(selected==='correlation'){var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(list)list.innerHTML='<div class="sub" style="padding:20px">LOADING CORRELATION 01 FROM CORRELATION LAB…</div>';try{await loadCorrelationStrategyOpportunities();}catch(e){if(list)list.innerHTML='<div class="sub" style="padding:20px">CORRELATION 01 ERROR · '+esc(e.message||e)+'</div>';return;}}renderList();};});
 }
 function renderList(){
 var m=document.getElementById('mteOpportunityWorkspace');if(!m)return;
@@ -148,51 +182,3 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-<script>
-(function(){
-'use strict';
-function ce(x){return String(x==null?'':x).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
-function pf(x){return (x>=0?'+':'')+Number(x||0).toFixed(2)+'%';}
-function renderCorrDetail(o){
- var d=document.getElementById('mteOpportunityDetail');if(!d)return;
- d.classList.remove('is-hidden');
- d.innerHTML='<div class="mte-detail-head"><button id="mteCorrBack">← BACK TO OPPORTUNITIES</button><span class="mte-op-badge">CORRELATION 01</span></div>'+
- '<div class="mte-detail-title"><div><div class="eyebrow">CORRELATION 01</div><h2>'+ce(o.follower)+' · '+ce(o.side)+'</h2><div class="sub">'+ce(o.leader)+' → '+ce(o.follower)+' · '+ce(o.direction)+'</div></div><strong>'+(o.trigger?'TRIGGERED':'WATCH')+'</strong></div>'+
- '<div class="mte-detail-grid"><div class="box"><h3>RELATIONSHIP</h3><div class="row"><span>Leader</span><b>'+ce(o.leader)+'</b></div><div class="row"><span>Follower</span><b>'+ce(o.follower)+'</b></div><div class="row"><span>Correlation</span><b>'+(o.corr>=0?'+':'')+o.corr.toFixed(2)+'</b></div><div class="row"><span>Relationship</span><b>'+ce(o.direction)+'</b></div></div>'+
- '<div class="box"><h3>CURRENT MOVE</h3><div class="row"><span>Leader latest move</span><b>'+pf(o.leaderMove)+'</b></div><div class="row"><span>Follower latest move</span><b>'+pf(o.followerMove)+'</b></div><div class="row"><span>Expected follower move</span><b>'+pf(o.expectedMove)+'</b></div><div class="row"><span>Current gap</span><b>'+pf(o.gap)+'</b></div></div>'+
- '<div class="box"><h3>HISTORICAL RESPONSE</h3><div class="row"><span>5-bar response probability</span><b>'+o.probability.toFixed(1)+'%</b></div><div class="row"><span>Average 5-bar response</span><b>'+pf(o.response5)+'</b></div><div class="row"><span>Sample size</span><b>N='+o.responseN+'</b></div><div class="row"><span>Relationship stability</span><b>'+Math.round(o.stability*100)+'%</b></div></div></div>'+
- '<div class="mte-detail-engine"><b>HOW TO READ THIS</b><span>'+ce(o.leader)+' is the leading asset in the measured relationship. MTE expects '+ce(o.follower)+' to move '+(o.side==='LONG'?'up':'down')+' if the relationship reasserts. This does <b>not</b> mean BTC up / USD down unless the relationship is explicitly inverse.</span></div>'+
- '<div class="mte-detail-actions"><button id="mteCorrPass">PASS</button><button class="primary" id="mteCorrEnter" '+(o.trigger?'':'disabled')+'>'+(o.trigger?'ENTER PAPER TRADE':'WAIT FOR TRIGGER')+'</button></div>';
- document.getElementById('mteCorrBack').onclick=function(){d.classList.add('is-hidden');};
- document.getElementById('mteCorrPass').onclick=function(){d.classList.add('is-hidden');};
- if(o.trigger)document.getElementById('mteCorrEnter').onclick=function(){var b=document.getElementById('mteCorrEnter'),t=['CORR-'+o.leader+'-'+o.follower,o.follower,o.follower,o.side,0,0,0,'1–24H',0,0];if(typeof openDynamicPaper==='function')openDynamicPaper(t,b);b.textContent='PAPER OPENED';b.disabled=true;};
- d.scrollIntoView({behavior:'smooth',block:'start'});
-}
-function corrCard(o,i){
- var status=o.trigger?'TRIGGERED':'WATCH';
- return '<div class="mte-op-card corr-dynamic-card"><div class="mte-op-card-top"><div><div class="mte-op-id">CORR-'+String(i+1).padStart(3,'0')+'</div><div class="mte-op-symbol">'+ce(o.leader)+' → '+ce(o.follower)+'</div><div class="mte-op-name">'+ce(o.direction)+'</div></div><div class="mte-op-side">'+ce(o.side)+'</div></div><div class="mte-op-type">Relationship dislocation · '+(o.corr>=0?'positive':'inverse')+' relationship</div><div class="mte-op-grid"><div><small>HISTORICAL RESPONSE</small><b>'+o.probability.toFixed(1)+'% · N='+o.responseN+'</b></div><div><small>CURRENT RELATIONSHIP</small><b>'+pf(o.leaderMove)+' → '+pf(o.followerMove)+'</b></div><div><small>EXPECTED FOLLOWER</small><b>'+pf(o.expectedMove)+'</b></div><div><small>STATUS</small><b class="'+(o.trigger?'corr-trigger':'corr-watch')+'">'+status+'</b></div></div><div class="mte-op-actions"><button data-corr-detail="'+o._id+'">VIEW OPPORTUNITY</button><button class="primary" data-corr-enter="'+o._id+'" '+(o.trigger?'':'disabled')+'>'+(o.trigger?'ENTER PAPER':'WAIT FOR TRIGGER')+'</button></div></div>';
-}
-function bindCorr(){
- document.querySelectorAll('[data-corr-detail]').forEach(function(b){b.onclick=function(){var o=(window.__mteCorrelationOpps||[]).find(function(x){return x._id===b.getAttribute('data-corr-detail');});if(o)renderCorrDetail(o);};});
- document.querySelectorAll('[data-corr-enter]').forEach(function(b){b.onclick=function(){var o=(window.__mteCorrelationOpps||[]).find(function(x){return x._id===b.getAttribute('data-corr-enter');});if(o)renderCorrDetail(o);};});
-}
-async function renderCorrelationOpportunities(){
- var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(!list||typeof window.mteGetCorrelationOpportunities!=='function')return;
- list.innerHTML='<div class="sub" style="padding:20px">RUNNING CORRELATION 01 RESEARCH · calculating cross-asset relationships…</div>';
- try{
-  var rows=await window.mteGetCorrelationOpportunities();rows.forEach(function(o,i){o._id='C'+i;});
-  var triggered=rows.filter(function(o){return o.trigger;});
-  var shown=(triggered.length?triggered:rows).slice(0,12);
-  list.innerHTML=shown.map(corrCard).join('');bindCorr();
-  var head=document.querySelector('#mteOpportunityWorkspace .mte-work-head .sub');if(head)head.textContent=triggered.length+' triggered relationship opportunities · '+rows.length+' qualified relationships ranked · same research engine as CORRELATION';
-  var filter=document.querySelector('#mteOpportunityWorkspace .mte-op-filter');
-  if(filter){var n=document.getElementById('mteCorrOppNote');if(!n){n=document.createElement('div');n.id='mteCorrOppNote';n.className='sub';filter.parentNode.insertBefore(n,filter.nextSibling);}n.innerHTML='<b>HOW TO READ:</b> Leader → follower tells you which asset moved first. Trade direction tells you whether MTE expects the follower LONG or SHORT. Positive relationship = same direction; inverse relationship = opposite direction. Only TRIGGERED setups can be entered.';}
- }catch(e){list.innerHTML='<div class="sub" style="padding:20px">CORRELATION 01 ERROR · '+ce(e.message||e)+'</div>';}
-}
-function hookCorr(){
- var b=document.querySelector('[data-op-filter="correlation"]');if(b){b.addEventListener('click',function(){setTimeout(renderCorrelationOpportunities,0);});if(b.classList.contains('active'))setTimeout(renderCorrelationOpportunities,0);}
- var st=document.createElement('style');st.textContent='.corr-trigger{font-weight:900}.corr-watch{font-weight:900}.corr-dynamic-card{min-width:0}.mte-op-actions button:disabled{opacity:.45;cursor:not-allowed}';document.head.appendChild(st);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hookCorr);else hookCorr();
-})();
-</script>
