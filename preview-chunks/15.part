@@ -380,14 +380,15 @@
     }
     return rows.sort((a,b)=>Math.abs(b.c)-Math.abs(a.c));
   }
-  function forwardResponse(ra,rb,threshold){
+  function forwardResponse(ra,rb,threshold,relationshipSign){
     if(ra.length<30)return {n:0,one:0,five:0,twenty:0,win5:0};
+    const sign=relationshipSign===-1?-1:1;
     const mu=mean(ra),sd=stdev(ra),t=Math.max(threshold*sd,0.0001),events=[];
     for(let i=0;i<ra.length-20;i++){
       if(Math.abs(ra[i]-mu)<t)continue;
       const dir=Math.sign(ra[i]-mu);
       const f=n=>rb.slice(i+1,i+1+n).reduce((s,x)=>s+x,0);
-      events.push({one:f(1)*dir,five:f(5)*dir,twenty:f(20)*dir});
+      events.push({one:f(1)*dir*sign,five:f(5)*dir*sign,twenty:f(20)*dir*sign});
     }
     return {
       n:events.length,
@@ -396,6 +397,16 @@
       twenty:events.length?mean(events.map(x=>x.twenty))*100:0,
       win5:events.length?events.filter(x=>x.five>0).length/events.length*100:0
     };
+  }
+  function relationshipTradeStats(aRows,bRows,p){
+    const lag=lagResearch(p.ra,p.rb,10)[0];
+    const reverse=lag.lag<0;
+    const leader=reverse?p.b:p.a, follower=reverse?p.a:p.b;
+    const leaderRows=reverse?p.rb:p.ra, followerRows=reverse?p.ra:p.rb;
+    const sign=p.corr>=0?1:-1;
+    const resp=forwardResponse(leaderRows,followerRows,1.5,sign);
+    const direction=sign===1?'SAME DIRECTION':'INVERSE DIRECTION';
+    return {leader,follower,leaderRows,followerRows,lag,sign,direction,resp};
   }
   async function loadCorrelationUniverse(cfg){
     const symbols=mteAvailableSymbols();
@@ -484,14 +495,14 @@
           const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win===9999?100000:win);
           if(p.samples<20)continue;
           matrix[a][b]=matrix[b][a]=p;
-          if(Math.abs(p.corr)>=minR){const resp=forwardResponse(p.ra,p.rb,1.5);pairs.push({a,b,...p,probability:resp.win5,response5:resp.five});}
+          if(Math.abs(p.corr)>=minR){const rel=relationshipTradeStats(aRows,bRows,p);pairs.push({a,b,...p,leader:rel.leader,follower:rel.follower,direction:rel.direction,probability:rel.resp.win5,response5:rel.resp.five,responseN:rel.resp.n});}
         }
       }
-      pairs.sort((a,b)=>(b.probability-a.probability)||(Math.abs(b.corr)-Math.abs(a.corr))||(b.stability-a.stability));
+      pairs.sort((a,b)=>(b.probability-a.probability)||(b.response5-a.response5)||(b.responseN-a.responseN));
       const shown=pairs.slice(0,100);
       const fmt=x=>x==null?'—':(x.corr>=0?'+':'')+x.corr.toFixed(2);
       const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(0,170,65,'+(0.28+.70*alpha)+')':'rgba(210,40,50,'+(0.20+.70*alpha)+')';};
-      const probabilityTop=shown.slice(0,10);heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+'<div class="mte-corr-prob-wrap"><div class="mte-corr-prob-title">TOP RELATIONSHIP OPPORTUNITIES · PROBABILITY</div><div class="mte-corr-prob-row">'+probabilityTop.map((p,i)=>'<button type="button" class="mte-corr-prob" data-corr-a="'+p.a+'" data-corr-b="'+p.b+'"><span class="rank">'+(i+1)+'</span><b>'+p.a+' ↔ '+p.b+'</b><strong>'+p.probability.toFixed(1)+'%</strong><small>5-bar aligned response · r '+(p.corr>=0?'+':'')+p.corr.toFixed(2)+'</small></button>').join('')+'</div></div>'+
+      const probabilityTop=shown.slice(0,10);heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+'<div class="mte-corr-prob-wrap"><div class="mte-corr-prob-title">TOP CORRELATION TRADE OPPORTUNITIES · BEST → WORST</div><div class="mte-corr-prob-row">'+probabilityTop.map((p,i)=>'<button type="button" class="mte-corr-prob" data-corr-a="'+p.a+'" data-corr-b="'+p.b+'"><span class="rank">'+(i+1)+'</span><b>'+p.leader+' → '+p.follower+'</b><strong>'+p.probability.toFixed(1)+'%</strong><small>5-bar response probability · '+p.direction.toLowerCase()+' · N='+p.responseN+'</small><em style="display:block;font-size:8px;color:#07883c;font-style:normal;margin-top:2px">avg response '+(p.response5>=0?'+':'')+p.response5.toFixed(2)+'%</em></button>').join('')+'</div></div>'+
         '<table style="border-collapse:collapse;font-size:10px;min-width:'+(symbols.length*58+100)+'px"><thead><tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px">ASSET</th>'+symbols.map(s=>'<th style="padding:5px;writing-mode:vertical-rl;transform:rotate(180deg);height:95px">'+s+'</th>').join('')+'</tr></thead><tbody>'+
         symbols.map(a=>'<tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px;text-align:left">'+a+'</th>'+symbols.map(b=>{const p=matrix[a][b];return '<td style="background:'+(a===b?'#111':bg(p))+';color:#fff;border:1px solid #333;text-align:center;padding:6px;cursor:'+(p?'pointer':'default')+'" data-corr-a="'+a+'" data-corr-b="'+b+'">'+(a===b?'—':fmt(p))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';
       heat.querySelectorAll('[data-corr-a]').forEach(td=>td.addEventListener('click',()=>{
@@ -503,7 +514,7 @@
     }catch(e){status.textContent='CORRELATION LAB ERROR';heat.innerHTML='<div class="sub">'+String(e.message||e)+'</div>';}
   }
   function renderCorrelationDetail(a,b,aRows,bRows,p,detail){
-    const lag=lagResearch(p.ra,p.rb,10)[0],resp=forwardResponse(p.ra,p.rb,1.5);
+    const rel=relationshipTradeStats(aRows,bRows,p),lag=rel.lag,resp=rel.resp;
     const rolling=[];const n=p.ra.length,step=Math.max(20,Math.floor(n/5));
     for(let i=step;i<=n;i+=step)rolling.push(corr(p.ra.slice(Math.max(0,i-step),i),p.rb.slice(Math.max(0,i-step),i)));
     const direction=lag.lag>0?a+' leads '+b:lag.lag<0?b+' leads '+a:'same-bar relationship';
@@ -515,9 +526,11 @@
       '<div class="row"><span>Samples</span><b>'+p.samples.toLocaleString()+'</b></div>'+
       '<div class="row"><span>Rolling sign stability</span><b>'+Math.round(p.stability*100)+'%</b></div>'+
       '<div class="row"><span>Strongest lead / lag</span><b>'+direction+' · '+(lag.c>=0?'+':'')+lag.c.toFixed(3)+' · lag '+lag.lag+'</b></div>'+
-      '<div class="row"><span>Response after large '+a+' move</span><b>1 bar '+resp.one.toFixed(2)+'% · 5 bars '+resp.five.toFixed(2)+'% · 20 bars '+resp.twenty.toFixed(2)+'%</b></div>'+
-      '<div class="row"><span>Aligned 5-bar response win rate</span><b>'+resp.win5.toFixed(1)+'%</b></div>'+
-      '<div class="sub" style="margin-top:10px">Lead/lag is measured on synchronized return observations. Conditional response is measured after '+a+' moves more than 1.5 standard deviations from its sample mean. These statistics are descriptive research outputs, not trade recommendations.</div>'+
+      '<div class="row"><span>Relationship trade direction</span><b>'+rel.leader+' → '+rel.follower+' · '+rel.direction+'</b></div>'+
+      '<div class="row"><span>Response after qualifying '+rel.leader+' move</span><b>1 bar '+resp.one.toFixed(2)+'% · 5 bars '+resp.five.toFixed(2)+'% · 20 bars '+resp.twenty.toFixed(2)+'%</b></div>'+
+      '<div class="row"><span>5-bar response probability</span><b>'+resp.win5.toFixed(1)+'% · N='+resp.n+'</b></div>'+
+      '<div class="box" style="margin-top:12px;border:1px solid #dfe3e8;background:#f8fafb"><h3 style="margin:0 0 6px">TRADE SETUP</h3><div class="row"><span>Trigger</span><b>Qualifying move in '+rel.leader+'</b></div><div class="row"><span>Follower</span><b>'+rel.follower+'</b></div><div class="row"><span>Expected response</span><b>'+rel.direction+'</b></div><div class="row"><span>Historical 5-bar probability</span><b>'+resp.win5.toFixed(1)+'%</b></div><div class="row"><span>Historical average 5-bar response</span><b>'+resp.five.toFixed(2)+'%</b></div><div class="sub" style="margin-top:8px">This is a research setup, not a live trade signal. The leader trigger must occur in the current market before considering an entry.</div></div>'+
+      '<div class="sub" style="margin-top:10px">Lead/lag is measured on synchronized return observations. Conditional response is measured after the leader moves more than 1.5 standard deviations from its sample mean. The percentage is historical conditional response probability, not a guaranteed trade win rate.</div>'+
       (tradeSymbol?'<div style="margin-top:12px"><button type="button" class="primary" id="mteCorrelationBacktest">BACKTEST '+tradeSymbol+'</button></div>':'')+
       '<div style="overflow:auto;margin-top:10px"><table><thead><tr><th>WINDOW</th><th>CORRELATION</th></tr></thead><tbody>'+rolling.map((x,i)=>'<tr><td>segment '+(i+1)+'</td><td>'+(x>=0?'+':'')+x.toFixed(3)+'</td></tr>').join('')+'</tbody></table></div>';
     const go=document.getElementById('mteCorrelationBacktest');
