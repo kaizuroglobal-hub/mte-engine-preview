@@ -413,20 +413,52 @@
   }
   function correlationLabHtml(){
     if(document.getElementById('mteCorrelationLab'))return;
-    const anchor=document.getElementById('mteExpandedLab')||document.getElementById('optimisationResults')||document.getElementById('backtestResults')||document.body;
+    const mount=document.getElementById('mteCorrelationMount');
+    if(!mount)return;
     const box=document.createElement('section');
-    box.id='mteCorrelationLab';box.className='box';box.style.marginTop='15px';
-    box.innerHTML='<h3>MTE CORRELATION LAB · RESEARCH</h3><div class="sub">Discover, measure and validate cross-asset relationships using the existing MTE cached universe. This is research only; nothing here changes MACRO, TECHNICAL, MACTECH or the backtest engine.</div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:12px">'+
-      '<label>WINDOW<select id="mteCorrWindow"><option value="20">20 BARS</option><option value="60" selected>60 BARS</option><option value="120">120 BARS</option><option value="252">252 BARS</option><option value="504">2Y</option><option value="1260">5Y</option><option value="9999">MAX</option></select></label>'+
-      '<label>ASSET CLASS<select id="mteCorrClass"><option value="ALL">ALL</option><option value="EQUITY">EQUITY / ETF</option><option value="RATES">RATES</option><option value="COMMODITY">COMMODITY</option><option value="FX">FX</option><option value="CRYPTO">CRYPTO</option></select></label>'+
-      '<label>MIN |R|<select id="mteCorrMin"><option value="0">0.00</option><option value=".30">0.30</option><option value=".50" selected>0.50</option><option value=".70">0.70</option></select></label>'+
-      '<button id="mteRunCorrelationLab" class="primary" type="button">RUN CORRELATION RESEARCH</button></div>'+
-      '<div id="mteCorrelationStatus" class="sub" style="margin-top:10px">Ready · uses assets already available to MTE.</div>'+
-      '<div id="mteCorrelationHeat" style="margin-top:14px;overflow:auto"></div>'+
-      '<div id="mteCorrelationDetail" class="box" style="margin-top:14px"><h3>RELATIONSHIP EXPLORER</h3><div class="sub">Click any heat-map cell to inspect rolling stability, lead/lag and conditional response.</div></div>'+
-      '<div id="mteCorrelationRanking" class="box" style="margin-top:14px"><h3>RELATIONSHIP RANKING</h3><div class="sub">Run the research to generate ranked candidate relationships.</div></div>';
-    if(anchor===document.body)document.body.appendChild(box);else anchor.parentNode.insertBefore(box,anchor);
+    box.id='mteCorrelationLab';box.className='box';box.style.marginTop='0';
+    box.innerHTML=
+      '<div class="mte-collapse-head">'+
+        '<div><h2 style="margin:0 0 4px">MTE CORRELATION LAB · RESEARCH</h2><div class="sub">Cross-asset relationship discovery using the existing MTE historical universe.</div></div>'+
+        '<span class="badge gray">RESEARCH ONLY</span>'+
+      '</div>'+
+      '<div class="sub" style="margin-top:8px">Research flow: <b>Heat Map → Relationship Explorer → Candidate Ranking → Backtest</b>. Clicking a relationship never places a trade.</div>'+
+      '<div class="mte-corr-section" data-corr-section="heat" style="margin-top:14px">'+
+        '<div class="mte-collapse-head" style="border-top:1px solid #e4e8ec;padding-top:12px">'+
+          '<h3 style="margin:0">1 · CORRELATION HEAT MAP</h3><button type="button" class="mte-collapse-toggle" aria-expanded="true" title="Collapse">⌃</button>'+
+        '</div>'+
+        '<div class="mte-collapse-body">'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px">'+
+            '<label>WINDOW<select id="mteCorrWindow"><option value="20">20 BARS</option><option value="60" selected>60 BARS</option><option value="120">120 BARS</option><option value="252">252 BARS</option><option value="504">2Y</option><option value="1260">5Y</option><option value="9999">MAX</option></select></label>'+
+            '<label>ASSET CLASS<select id="mteCorrClass"><option value="ALL">ALL</option><option value="EQUITY">EQUITY / ETF</option><option value="RATES">RATES</option><option value="COMMODITY">COMMODITY</option><option value="FX">FX</option><option value="CRYPTO">CRYPTO</option></select></label>'+
+            '<label>MIN |R|<select id="mteCorrMin"><option value="0">0.00</option><option value=".30">0.30</option><option value=".50" selected>0.50</option><option value=".70">0.70</option></select></label>'+
+            '<button id="mteRunCorrelationLab" class="primary" type="button">RUN RESEARCH</button>'+
+          '</div>'+
+          '<div id="mteCorrelationStatus" class="sub" style="margin-top:10px">Ready · uses assets already available to MTE.</div>'+
+          '<div id="mteCorrelationHeat" style="margin-top:12px;overflow:auto"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="mte-corr-section" data-corr-section="detail" style="margin-top:14px">'+
+        '<div class="mte-collapse-head" style="border-top:1px solid #e4e8ec;padding-top:12px">'+
+          '<h3 style="margin:0">2 · RELATIONSHIP EXPLORER</h3><button type="button" class="mte-collapse-toggle" aria-expanded="false" title="Expand">⌄</button>'+
+        '</div>'+
+        '<div class="mte-collapse-body is-collapsed" id="mteCorrelationDetail"><div class="sub" style="padding-top:10px">Select a heat-map relationship to inspect correlation stability, lead/lag and conditional response.</div></div>'+
+      '</div>'+
+      '<div class="mte-corr-section" data-corr-section="ranking" style="margin-top:14px">'+
+        '<div class="mte-collapse-head" style="border-top:1px solid #e4e8ec;padding-top:12px">'+
+          '<h3 style="margin:0">3 · RELATIONSHIP RANKING</h3><button type="button" class="mte-collapse-toggle" aria-expanded="false" title="Expand">⌄</button>'+
+        '</div>'+
+        '<div class="mte-collapse-body is-collapsed" id="mteCorrelationRanking"><div class="sub" style="padding-top:10px">Run the research to generate ranked candidate relationships.</div></div>'+
+      '</div>';
+    mount.appendChild(box);
+    box.querySelectorAll('.mte-collapse-toggle').forEach(btn=>btn.addEventListener('click',()=>{
+      const body=btn.parentElement.nextElementSibling;
+      const open=!body.classList.contains('is-collapsed');
+      body.classList.toggle('is-collapsed',open);
+      btn.setAttribute('aria-expanded',String(!open));
+      btn.textContent=open?'⌄':'⌃';
+      btn.title=open?'Expand':'Collapse';
+    }));
     box.querySelector('#mteRunCorrelationLab').addEventListener('click',()=>mteRunCorrelationLab());
   }
   function correlationClass(s){
