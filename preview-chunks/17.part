@@ -112,24 +112,26 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>
 (function(){
   function initMteNavigation(){
-    if(window.__mteNavigationBound)return;
     var nav=document.querySelector('.nav');
     if(!nav)return;
-    window.__mteNavigationBound=true;
     nav.querySelectorAll('button[data-view]').forEach(function(btn){
-      btn.addEventListener('click',function(){
+      btn.onclick=function(){
         var target=btn.getAttribute('data-view');
-        nav.querySelectorAll('button[data-view]').forEach(function(b){b.classList.toggle('active',b===btn);});
-        document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('active',v.id===target);});
-        if(target==='correlation' && typeof window.correlationLabHtml==='function'){
-          window.correlationLabHtml();
-        }
+        var view=document.getElementById(target);
+        if(!view)return;
+        nav.querySelectorAll('button[data-view]').forEach(function(b){
+          b.classList.toggle('active',b===btn);
+        });
+        document.querySelectorAll('main .view').forEach(function(v){
+          v.classList.remove('active');
+        });
+        view.classList.add('active');
         if(target==='trades'){
           var d=document.getElementById('mteOpportunityDetail');
           if(d)d.classList.add('is-hidden');
         }
         window.scrollTo({top:0,behavior:'smooth'});
-      });
+      };
     });
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initMteNavigation);else initMteNavigation();
