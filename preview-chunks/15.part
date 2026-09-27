@@ -96,13 +96,22 @@
     return {dates:usableDates,series:usable,symbols:Object.keys(usable)};
   }
 
+  function mteAvailableSymbols(){
+    const fromSelector=Array.from(document.querySelectorAll('#btAsset option')).map(o=>o.value).filter(Boolean);
+    return Array.from(new Set([...fromSelector,...UNIVERSE]));
+  }
   async function loadRawUniverse(asset,cfg){
-    const symbols=[asset,...UNIVERSE].filter((x,i,a)=>a.indexOf(x)===i);
+    const symbols=mteAvailableSymbols().filter((x,i,a)=>a.indexOf(x)===i);
     const raw={};
-    const out=await Promise.all(symbols.map(async s=>{
-      try{return [s,await fetchYahooHistory(s)];}catch(e){return null;}
-    }));
-    out.filter(Boolean).forEach(x=>raw[x[0]]=x[1]);
+    const out=[];
+    for(let i=0;i<symbols.length;i+=12){
+      const batch=symbols.slice(i,i+12);
+      const got=await Promise.all(batch.map(async s=>{
+        try{return [s,await fetchYahooHistory(s)];}catch(e){return null;}
+      }));
+      got.filter(Boolean).forEach(x=>raw[x[0]]=x[1]);
+      await sleep(0);
+    }
     return alignedUniverse(raw,asset,cfg.start,cfg.end);
   }
 
@@ -332,6 +341,149 @@
     return null;
   }
 
+  function correlationReturns(rows){
+    const out=new Map();
+    (rows||[]).forEach((r,i)=>{
+      const d=r.date,v=Number(r.close);
+      if(i>0&&Number.isFinite(v)&&Number.isFinite(rows[i-1]?.close)){
+        const pv=Number(rows[i-1].close);
+        if(pv)out.set(d,v/pv-1);
+      }
+    });
+    return out;
+  }
+  function correlationPair(aRows,bRows,windowBars){
+    const a=correlationReturns(aRows),b=correlationReturns(bRows);
+    const common=Array.from(a.keys()).filter(d=>b.has(d)).sort();
+    if(common.length<Math.max(20,windowBars*.5))return {corr:0,samples:common.length,stability:0,dates:common,ra:[],rb:[]};
+    const use=common.slice(-windowBars),ra=use.map(d=>a.get(d)),rb=use.map(d=>b.get(d));
+    const c=corr(ra,rb),parts=[];
+    const partN=Math.max(20,Math.floor(use.length/5));
+    for(let j=0;j<5;j++){
+      const s=Math.max(0,use.length-(j+1)*partN),e=use.length-j*partN;
+      if(e-s<20)continue;
+      parts.push(corr(ra.slice(s,e),rb.slice(s,e)));
+    }
+    const sign=c>=0?1:-1;
+    const stability=parts.length?parts.filter(x=>Math.sign(x)===sign).length/parts.length:0;
+    return {corr:c,samples:use.length,stability,dates:use,ra,rb};
+  }
+  function lagResearch(ra,rb,maxLag){
+    const rows=[];
+    for(let lag=-maxLag;lag<=maxLag;lag++){
+      let x,y;
+      if(lag>0){x=ra.slice(0,-lag);y=rb.slice(lag);}
+      else if(lag<0){const k=-lag;x=ra.slice(k);y=rb.slice(0,-k);}
+      else{x=ra;y=rb;}
+      rows.push({lag,c:corr(x,y),samples:x.length});
+    }
+    return rows.sort((a,b)=>Math.abs(b.c)-Math.abs(a.c));
+  }
+  function forwardResponse(ra,rb,threshold){
+    if(ra.length<30)return {n:0,one:0,five:0,twenty:0,win5:0};
+    const mu=mean(ra),sd=stdev(ra),t=Math.max(threshold*sd,0.0001),events=[];
+    for(let i=0;i<ra.length-20;i++){
+      if(Math.abs(ra[i]-mu)<t)continue;
+      const dir=Math.sign(ra[i]-mu);
+      const f=n=>rb.slice(i+1,i+1+n).reduce((s,x)=>s+x,0);
+      events.push({one:f(1)*dir,five:f(5)*dir,twenty:f(20)*dir});
+    }
+    return {
+      n:events.length,
+      one:events.length?mean(events.map(x=>x.one))*100:0,
+      five:events.length?mean(events.map(x=>x.five))*100:0,
+      twenty:events.length?mean(events.map(x=>x.twenty))*100:0,
+      win5:events.length?events.filter(x=>x.five>0).length/events.length*100:0
+    };
+  }
+  async function loadCorrelationUniverse(cfg){
+    const symbols=mteAvailableSymbols();
+    const raw={};
+    for(let i=0;i<symbols.length;i+=12){
+      const got=await Promise.all(symbols.slice(i,i+12).map(async s=>{
+        try{return [s,await fetchYahooHistory(s)];}catch(e){return null;}
+      }));
+      got.filter(Boolean).forEach(x=>raw[x[0]]=x[1]);
+      const status=document.getElementById('mteCorrelationStatus');
+      if(status)status.textContent='Loading cached history · '+Math.min(i+12,symbols.length)+' / '+symbols.length+' assets';
+      await sleep(0);
+    }
+    const usable=Object.keys(raw).filter(s=>Array.isArray(raw[s])&&raw[s].length>=60);
+    return {raw,symbols:usable};
+  }
+  function correlationLabHtml(){
+    if(document.getElementById('mteCorrelationLab'))return;
+    const anchor=document.getElementById('mteExpandedLab')||document.getElementById('optimisationResults')||document.getElementById('backtestResults')||document.body;
+    const box=document.createElement('section');
+    box.id='mteCorrelationLab';box.className='box';box.style.marginTop='15px';
+    box.innerHTML='<h3>MTE CORRELATION LAB · RESEARCH</h3><div class="sub">Discover, measure and validate cross-asset relationships using the existing MTE cached universe. This is research only; nothing here changes MACRO, TECHNICAL, MACTECH or the backtest engine.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:12px">'+
+      '<label>WINDOW<select id="mteCorrWindow"><option value="20">20 BARS</option><option value="60" selected>60 BARS</option><option value="120">120 BARS</option><option value="252">252 BARS</option><option value="504">2Y</option><option value="1260">5Y</option><option value="9999">MAX</option></select></label>'+
+      '<label>ASSET CLASS<select id="mteCorrClass"><option value="ALL">ALL</option><option value="EQUITY">EQUITY / ETF</option><option value="RATES">RATES</option><option value="COMMODITY">COMMODITY</option><option value="FX">FX</option><option value="CRYPTO">CRYPTO</option></select></label>'+
+      '<label>MIN |R|<select id="mteCorrMin"><option value="0">0.00</option><option value=".30">0.30</option><option value=".50" selected>0.50</option><option value=".70">0.70</option></select></label>'+
+      '<button id="mteRunCorrelationLab" class="primary" type="button">RUN CORRELATION RESEARCH</button></div>'+
+      '<div id="mteCorrelationStatus" class="sub" style="margin-top:10px">Ready · uses assets already available to MTE.</div>'+
+      '<div id="mteCorrelationHeat" style="margin-top:14px;overflow:auto"></div>'+
+      '<div id="mteCorrelationDetail" class="box" style="margin-top:14px"><h3>RELATIONSHIP EXPLORER</h3><div class="sub">Click any heat-map cell to inspect rolling stability, lead/lag and conditional response.</div></div>'+
+      '<div id="mteCorrelationRanking" class="box" style="margin-top:14px"><h3>RELATIONSHIP RANKING</h3><div class="sub">Run the research to generate ranked candidate relationships.</div></div>';
+    if(anchor===document.body)document.body.appendChild(box);else anchor.parentNode.insertBefore(box,anchor);
+    box.querySelector('#mteRunCorrelationLab').addEventListener('click',()=>mteRunCorrelationLab());
+  }
+  function correlationClass(s){
+    if(/USD|EUR|GBP|AUD|NZD|JPY|CAD|CHF|=X$/.test(s))return 'FX';
+    if(/BTC|ETH/.test(s))return 'CRYPTO';
+    if(/TLT|IEF|SHY|^BND|AGG/.test(s))return 'RATES';
+    if(/GLD|SLV|USO|DBC|GC=F|CL=F|HG=F|XLE/.test(s))return 'COMMODITY';
+    return 'EQUITY';
+  }
+  async function mteRunCorrelationLab(){
+    correlationLabHtml();
+    const cfg=getBTConfig(),win=Number(document.getElementById('mteCorrWindow').value||60),cls=document.getElementById('mteCorrClass').value,minR=Number(document.getElementById('mteCorrMin').value||0);
+    const status=document.getElementById('mteCorrelationStatus'),heat=document.getElementById('mteCorrelationHeat'),detail=document.getElementById('mteCorrelationDetail'),ranking=document.getElementById('mteCorrelationRanking');
+    status.textContent='Loading existing MTE cached history…';heat.innerHTML='<div class="sub">Calculating pairwise return correlations…</div>';
+    try{
+      const ds=await loadCorrelationUniverse(cfg);
+      const symbols=ds.symbols.filter(s=>cls==='ALL'||correlationClass(s)===cls);
+      const pairs=[],matrix={};
+      symbols.forEach(a=>{matrix[a]={};symbols.forEach(b=>matrix[a][b]=null);});
+      for(let i=0;i<symbols.length;i++){
+        for(let j=i+1;j<symbols.length;j++){
+          const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win===9999?100000:win);
+          if(p.samples<20)continue;
+          matrix[a][b]=matrix[b][a]=p;
+          if(Math.abs(p.corr)>=minR)pairs.push({a,b,...p});
+        }
+      }
+      pairs.sort((a,b)=>(Math.abs(b.corr)-Math.abs(a.corr))||(b.stability-a.stability));
+      const shown=pairs.slice(0,100);
+      const fmt=x=>x==null?'—':(x.corr>=0?'+':'')+x.corr.toFixed(2);
+      const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(20,150,60,'+(0.18+.62*alpha)+')':'rgba(210,40,50,'+(0.18+.62*alpha)+')';};
+      heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+
+        '<table style="border-collapse:collapse;font-size:10px;min-width:'+(symbols.length*58+100)+'px"><thead><tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px">ASSET</th>'+symbols.map(s=>'<th style="padding:5px;writing-mode:vertical-rl;transform:rotate(180deg);height:95px">'+s+'</th>').join('')+'</tr></thead><tbody>'+
+        symbols.map(a=>'<tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px;text-align:left">'+a+'</th>'+symbols.map(b=>{const p=matrix[a][b];return '<td style="background:'+(a===b?'#111':bg(p))+';color:#fff;border:1px solid #333;text-align:center;padding:6px;cursor:'+(p?'pointer':'default')+'" data-corr-a="'+a+'" data-corr-b="'+b+'">'+(a===b?'—':fmt(p))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';
+      heat.querySelectorAll('[data-corr-a]').forEach(td=>td.addEventListener('click',()=>{
+        const a=td.dataset.corrA,b=td.dataset.corrB;if(a===b||!matrix[a][b])return;
+        renderCorrelationDetail(a,b,ds.raw[a],ds.raw[b],matrix[a][b],detail);
+      }));
+      ranking.innerHTML='<h3>RELATIONSHIP RANKING · TOP '+Math.min(100,shown.length)+'</h3><div class="sub">Ranked by absolute return correlation, then rolling sign stability. This is discovery ranking, not proof of a trading edge.</div><div style="overflow:auto"><table><thead><tr><th>RANK</th><th>A</th><th>B</th><th>CORR</th><th>STABILITY</th><th>SAMPLES</th></tr></thead><tbody>'+shown.map((p,i)=>'<tr><td>'+(i+1)+'</td><td>'+p.a+'</td><td>'+p.b+'</td><td>'+(p.corr>=0?'+':'')+p.corr.toFixed(3)+'</td><td>'+Math.round(p.stability*100)+'%</td><td>'+p.samples+'</td></tr>').join('')+'</tbody></table></div>';
+      status.textContent='COMPLETE · '+symbols.length+' assets · '+(symbols.length*(symbols.length-1)/2).toLocaleString()+' possible pairs evaluated';
+    }catch(e){status.textContent='CORRELATION LAB ERROR';heat.innerHTML='<div class="sub">'+String(e.message||e)+'</div>';}
+  }
+  function renderCorrelationDetail(a,b,aRows,bRows,p,detail){
+    const lag=lagResearch(p.ra,p.rb,10)[0],resp=forwardResponse(p.ra,p.rb,1.5);
+    const rolling=[];const n=p.ra.length,step=Math.max(20,Math.floor(n/5));
+    for(let i=step;i<=n;i+=step)rolling.push(corr(p.ra.slice(Math.max(0,i-step),i),p.rb.slice(Math.max(0,i-step),i)));
+    const direction=lag.lag>0?a+' leads '+b:lag.lag<0?b+' leads '+a:'same-bar relationship';
+    detail.innerHTML='<h3>RELATIONSHIP EXPLORER · '+a+' ↔ '+b+'</h3>'+
+      '<div class="row"><span>Return correlation</span><b>'+(p.corr>=0?'+':'')+p.corr.toFixed(3)+'</b></div>'+
+      '<div class="row"><span>Samples</span><b>'+p.samples.toLocaleString()+'</b></div>'+
+      '<div class="row"><span>Rolling sign stability</span><b>'+Math.round(p.stability*100)+'%</b></div>'+
+      '<div class="row"><span>Strongest lead / lag</span><b>'+direction+' · '+(lag.c>=0?'+':'')+lag.c.toFixed(3)+' · lag '+lag.lag+'</b></div>'+
+      '<div class="row"><span>Response after large '+a+' move</span><b>1 bar '+resp.one.toFixed(2)+'% · 5 bars '+resp.five.toFixed(2)+'% · 20 bars '+resp.twenty.toFixed(2)+'%</b></div>'+
+      '<div class="row"><span>Aligned 5-bar response win rate</span><b>'+resp.win5.toFixed(1)+'%</b></div>'+
+      '<div class="sub" style="margin-top:10px">Lead/lag is measured on synchronized return observations. Conditional response is measured after '+a+' moves more than 1.5 standard deviations from its sample mean. These statistics are descriptive research outputs, not trade recommendations.</div>'+
+      '<div style="overflow:auto;margin-top:10px"><table><thead><tr><th>WINDOW</th><th>CORRELATION</th></tr></thead><tbody>'+rolling.map((x,i)=>'<tr><td>segment '+(i+1)+'</td><td>'+(x>=0?'+':'')+x.toFixed(3)+'</td></tr>').join('')+'</tbody></table></div>';
+  }
   function addExpandedUI(){
     if(document.getElementById('mteExpandedLab'))return;
     const anchor=document.getElementById('optimisationResults')||document.getElementById('backtestResults')||document.body;
@@ -521,6 +673,7 @@
 
   function init(){
     addExpandedUI();
+    correlationLabHtml();
     const s=document.getElementById('mteUniverseStatus');
     if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
   }
