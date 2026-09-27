@@ -81,7 +81,7 @@ window.mteCorrelationPaperEnter=function(o,leverage,automatic){
 function bindCorrelationPositionRefresh(){var b=document.querySelector('.nav button[data-view="positions"]');if(b&&!b.dataset.corrBound){b.dataset.corrBound='1';b.addEventListener('click',renderCorrelationPositions);}}
 async function loadCorrelationStrategyOpportunities(){
  if(typeof window.mteRunCorrelationLab!=='function')throw new Error('CORRELATION LAB is not available');
- await window.mteRunCorrelationLab();
+ await window.mteRunCorrelationLab({headless:true});
  var ps=window.__mteCorrelationTradeOpportunities||[],now=new Date().toISOString().slice(0,10);
  OPPS.correlation=ps.map(function(p,i){
    var expectedSign=Math.sign(Number(p.currentMove||0))*(p.corr>=0?1:-1),side=expectedSign>=0?'LONG':'SHORT',auto=!!p.autoPaperEligible;
