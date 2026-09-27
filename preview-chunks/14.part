@@ -547,65 +547,41 @@ function runCorrelationBacktest(symbol,closes,dates,exitModel,cfg,peerData){
  return summariseTrades(symbol,trades,closes.length,'CORRELATION 01 · Strategy 004',cfg,dates);
 }
 
-function runMacTechBacktest(symbol,closes,dates,exitModel,cfg,proxyData){
+function runMacTechBacktest(symbol,closes,dates,exitModel,cfg){
  const trades=[],baseCost=btCostPct(cfg);
  const fast=Math.max(3,Number(cfg.fast)||10),slow=Math.max(fast+5,Number(cfg.slow)||50);
- const momentumLookback=Number(cfg.mactechMomentum||20),volLookback=Number(cfg.mactechVol||20),corrLookback=Number(cfg.mactechCorr||60),breakoutLookback=Number(cfg.mactechBreakout||20);
+ const momentumLookback=Number(cfg.mactechMomentum||20),volLookback=Number(cfg.mactechVol||20),breakoutLookback=Number(cfg.mactechBreakout||20);
  const minMacroScore=Number(cfg.mactechMacroMin||0.55),minTechScore=Number(cfg.mactechTechMin||0.65);
- const maps={};Object.entries(proxyData||{}).forEach(([s,rows])=>{maps[s]=new Map((rows||[]).map(x=>[x.date,x.close]));});
- const aligned={};Object.keys(maps).forEach(s=>aligned[s]=dates.map(d=>maps[s].get(d)));
- const mean=(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
- const sd=(a)=>a.length>1?Math.sqrt(mean(a.map(x=>(x-mean(a))**2))):0;
- const corrLocal=(a,b)=>{const n=Math.min(a.length,b.length);if(n<20)return 0;const aa=a.slice(-n),bb=b.slice(-n),ma=mean(aa),mb=mean(bb);let num=0,da=0,db=0;for(let j=0;j<n;j++){const x=aa[j]-ma,y=bb[j]-mb;num+=x*y;da+=x*x;db+=y*y;}return da&&db?num/Math.sqrt(da*db):0;};
+ const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+ const sd=a=>a.length>1?Math.sqrt(mean(a.map(x=>(x-mean(a))**2))):0;
  const retAt=(arr,i,n)=>i>=n&&Number.isFinite(arr[i])&&Number.isFinite(arr[i-n])?arr[i]/arr[i-n]-1:0;
  const dailyRet=(arr,i)=>i>0&&Number.isFinite(arr[i])&&Number.isFinite(arr[i-1])?arr[i]/arr[i-1]-1:0;
  const rollingVol=(arr,i,n)=>{const r=[];for(let j=Math.max(1,i-n+1);j<=i;j++){const x=dailyRet(arr,j);if(Number.isFinite(x))r.push(x);}return sd(r)*Math.sqrt(252);};
  const highest=(arr,i,n)=>Math.max(...arr.slice(Math.max(0,i-n),i).filter(Number.isFinite));
  const lowest=(arr,i,n)=>Math.min(...arr.slice(Math.max(0,i-n),i).filter(Number.isFinite));
- const proxySymbols=Object.keys(aligned).filter(s=>s!==symbol);
- const start=Math.max(slow,momentumLookback,volLookback,corrLookback,breakoutLookback)+2;
+ const start=Math.max(slow,momentumLookback,volLookback,breakoutLookback,120)+2;
  for(let i=start;i<closes.length-1;){
    const px=closes[i];if(!Number.isFinite(px)){i++;continue;}
+   const an=analogueJS(closes.slice(0,i+1));
+   const macroScore=an&&an.sample>=20?Math.max(0,Math.min(1,Math.max(an.optimalProbability,100-an.optimalProbability)/100)):0;
+   if(macroScore<minMacroScore){i++;continue;}
    const fastMA=mean(closes.slice(i-fast,i)),slowMA=mean(closes.slice(i-slow,i));
    const trendDir=fastMA>=slowMA?1:-1;
    const momentum=retAt(closes,i,momentumLookback);
-   const vol=rollingVol(closes,i,volLookback),priorVol=rollingVol(closes,i,Math.min(corrLookback,volLookback*3));
+   const vol=rollingVol(closes,i,volLookback),priorVol=rollingVol(closes,i,Math.min(60,volLookback*3));
    const volRatio=priorVol>0?vol/priorVol:1;
    const hi=highest(closes,i,breakoutLookback),lo=lowest(closes,i,breakoutLookback);
    const breakout=px>=hi?1:px<=lo?-1:0;
-   let weighted=0,weightTotal=0,shockSum=0,shockN=0;
-   for(const s of proxySymbols){
-     const arr=aligned[s];if(!arr||!Number.isFinite(arr[i]))continue;
-     const targetR=[],peerR=[];
-     for(let j=Math.max(1,i-corrLookback+1);j<=i;j++){
-       const tr=dailyRet(closes,j),pr=dailyRet(arr,j);
-       if(Number.isFinite(tr)&&Number.isFinite(pr)){targetR.push(tr);peerR.push(pr);}
-     }
-     const c=corrLocal(targetR,peerR),pm=retAt(arr,i,momentumLookback);
-     if(!Number.isFinite(pm)||Math.abs(c)<0.15)continue;
-     const expectedSign=Math.sign(c)*Math.sign(trendDir||1);
-     const confirmation=Math.sign(pm)===expectedSign?1:0;
-     const w=Math.abs(c);weighted+=confirmation*w;weightTotal+=w;
-     const recent=[],base=[];
-     for(let j=Math.max(1,i-10);j<=i;j++){const r=dailyRet(arr,j);if(Number.isFinite(r))recent.push(Math.abs(r));}
-     for(let j=Math.max(1,i-corrLookback);j<=i-11;j++){const r=dailyRet(arr,j);if(Number.isFinite(r))base.push(Math.abs(r));}
-     if(base.length>10&&mean(base)>0){shockSum+=mean(recent)/mean(base);shockN++;}
-   }
-   const breadth=weightTotal?weighted/weightTotal:0;
-   const shockRatio=shockN?shockSum/shockN:1;
-   const macroShockScore=Math.max(0,Math.min(1,(shockRatio-0.8)/1.2));
-   const macroScore=.65*breadth+.35*macroShockScore;
    const momentumScore=Math.max(0,Math.min(1,Math.abs(momentum)/0.08));
    const breakoutScore=breakout===trendDir?1:0;
    const volScore=volRatio>=1.05&&volRatio<=3?Math.min(1,(volRatio-1.05)/0.95):volRatio>3?0.5:0;
-   const technicalScore=.35*(trendDir===Math.sign(momentum||trendDir)?1:0)+.25*momentumScore+.20*breakoutScore+.20*volScore;
-   if(weightTotal<0.5||macroScore<minMacroScore||technicalScore<minTechScore){i++;continue;}
+   const technicalScore=.45*(trendDir===Math.sign(momentum||trendDir)?1:0)+.30*momentumScore+.15*breakoutScore+.10*volScore;
+   if(technicalScore<minTechScore){i++;continue;}
    const direction=trendDir===1?'LONG':'SHORT';
-   const horizon=macroShockScore>.75?5:macroShockScore>.45?15:40;
-   const entry=px;
-   const ex=evaluateExitJS(closes,i,horizon,direction,exitModel,2,4);
+   const horizon=an&&an.optimalHorizonDays?Math.min(40,Math.max(1,an.optimalHorizonDays)):20;
+   const entry=px,ex=evaluateExitJS(closes,i,horizon,direction,exitModel,2,4);
    const gross=direction==='LONG'?pctJS(ex.price,entry):pctJS(entry,ex.price);
-   trades.push({direction,ret:gross-baseCost,bars:ex.bars,reason:'MACTECH_'+ex.reason,entryDate:dates[i],exitDate:dates[Math.min(i+ex.bars,dates.length-1)],entryPrice:entry,exitPrice:ex.price,macroScore,technicalScore,confirmationBreadth:breadth,volatilityRatio:volRatio});
+   trades.push({direction,ret:gross-baseCost,bars:ex.bars,reason:'MACTECH_'+ex.reason,entryDate:dates[i],exitDate:dates[Math.min(i+ex.bars,dates.length-1)],entryPrice:entry,exitPrice:ex.price,macroScore,technicalScore,volatilityRatio:volRatio});
    i=Math.max(i+1,i+ex.bars);
  }
  return summariseTrades(symbol,trades,closes.length,'MACTECH · Strategy 003',cfg,dates);
@@ -644,10 +620,7 @@ async function runBacktest(){
     await Promise.all(peerSymbols.map(async s=>{try{const rows=await fetchYahooHistory(s);peerData[s]=rows.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end));}catch(e){}}));
     result=runCorrelationBacktest(asset,closes,dates,exit,cfg,peerData);
   } else {
-    const macroSymbols=['SPY','TLT','GLD','USO','UUP','BTC-USD','ETH-USD'].filter(s=>s!==asset);
-    const proxyData={};
-    await Promise.all(macroSymbols.map(async s=>{try{const rows=await fetchYahooHistory(s);proxyData[s]=rows.filter(x=>(!cfg.start||x.date>=cfg.start)&&(!cfg.end||x.date<=cfg.end));}catch(e){}}));
-    result=runMacTechBacktest(asset,closes,dates,exit,cfg,proxyData);
+    result=runMacTechBacktest(asset,closes,dates,exit,cfg);
   }
   if(!result)throw new Error('Insufficient historical data for this test.');
   status.textContent='COMPLETED';let extra='';
