@@ -11,7 +11,7 @@
 (async()=>{
   try{
     const parts=["preview-chunks/00.part","preview-chunks/01.part","preview-chunks/02.part","preview-chunks/03.part","preview-chunks/04.part","preview-chunks/05.part","preview-chunks/06.part","preview-chunks/07.part","preview-chunks/08.part","preview-chunks/09.part","preview-chunks/10.part","preview-chunks/11.part","preview-chunks/12.part","preview-chunks/13.part","preview-chunks/14.part","preview-chunks/15.part","preview-chunks/16.part","preview-chunks/17.part","preview-chunks/18.part"];
-    const BUILD="20260927-correlation-fix-1";
+    const BUILD="20260927-correlation-trade-ranking-2";
     const text=await Promise.all(parts.map(p=>fetch(p+"?v="+BUILD,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Failed to load "+p);return r.text();})));
     document.open();
     document.write(text.join(""));
