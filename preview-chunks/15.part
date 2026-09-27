@@ -443,7 +443,8 @@
           '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px">'+
             '<label>WINDOW<select id="mteCorrWindow"><option value="20">20 BARS</option><option value="60" selected>60 BARS</option><option value="120">120 BARS</option><option value="252">252 BARS</option><option value="504">2Y</option><option value="1260">5Y</option><option value="9999">MAX</option></select></label>'+
             '<label>ASSET CLASS<select id="mteCorrClass"><option value="ALL">ALL</option><option value="EQUITY">EQUITY / ETF</option><option value="RATES">RATES</option><option value="COMMODITY">COMMODITY</option><option value="FX">FX</option><option value="CRYPTO">CRYPTO</option></select></label>'+
-            '<label>MIN |R|<select id="mteCorrMin"><option value="0">0.00</option><option value=".30">0.30</option><option value=".50" selected>0.50</option><option value=".70">0.70</option></select></label>'+
+            '<label>MIN |R|<select id="mteCorrMin"><option value="0">0.00</option><option value=".30" selected>0.30</option><option value=".50">0.50</option><option value=".70">0.70</option></select></label>'+
+            '<label>RESPONSE THRESHOLD<select id="mteCorrThreshold"><option value="60">60%</option><option value="70">70%</option><option value="75" selected>75%</option><option value="80">80%</option><option value="90">90%</option></select></label>'+
             '<button id="mteRunCorrelationLab" class="primary" type="button">RUN RESEARCH</button>'+
           '</div>'+
           '<div id="mteCorrelationStatus" class="sub" style="margin-top:10px">Ready · uses assets already available to MTE.</div>'+
@@ -480,31 +481,120 @@
     if(/GLD|SLV|USO|DBC|GC=F|CL=F|HG=F|XLE/.test(s))return 'COMMODITY';
     return 'EQUITY';
   }
-  async function mteRunCorrelationLab(){
-    correlationLabHtml();
-    const cfg=getBTConfig(),win=Number(document.getElementById('mteCorrWindow').value||60),cls=document.getElementById('mteCorrClass').value,minR=Number(document.getElementById('mteCorrMin').value||0);
-    const status=document.getElementById('mteCorrelationStatus'),heat=document.getElementById('mteCorrelationHeat'),detail=document.getElementById('mteCorrelationDetail'),ranking=document.getElementById('mteCorrelationRanking');
+  async function mteRunCorrelationLab(options){
+    const headless=!!(options&&options.headless);
+    if(!headless)correlationLabHtml();
+    const cfg=getBTConfig(),win=Number(headless?60:(document.getElementById('mteCorrWindow')?.value||60)),cls=headless?'ALL':document.getElementById('mteCorrClass').value,minR=Number(headless?.30:(document.getElementById('mteCorrMin')?.value||0));
+    const noop={textContent:'',innerHTML:''};
+    const status=headless?noop:document.getElementById('mteCorrelationStatus'),heat=headless?noop:document.getElementById('mteCorrelationHeat'),detail=headless?noop:document.getElementById('mteCorrelationDetail'),ranking=headless?noop:document.getElementById('mteCorrelationRanking');
     status.textContent='Loading existing MTE cached history…';heat.innerHTML='<div class="sub">Calculating pairwise return correlations…</div>';
     try{
       const ds=await loadCorrelationUniverse(cfg);
       const symbols=ds.symbols.filter(s=>cls==='ALL'||correlationClass(s)===cls);
       const pairs=[],matrix={};
+      const threshold=Math.max(0,Number(headless?75:(document.getElementById('mteCorrThreshold')?.value||75)));
+      const supportedDurations=[
+        {id:'5M',ms:5*60*1000},{id:'15M',ms:15*60*1000},{id:'1H',ms:60*60*1000},
+        {id:'4H',ms:4*60*60*1000},{id:'12H',ms:12*60*60*1000},
+        {id:'24H',ms:24*60*60*1000},{id:'48H',ms:48*60*60*1000}
+      ];
+      const median=x=>{const a=x.filter(v=>v>0).sort((a,b)=>a-b);return a.length?a[Math.floor(a.length/2)]:0;};
+      const durationStats=(p,leaderSeries,followerSeries,relationSign)=>{
+        const dates=p.dates||[],intervals=[];
+        for(let k=1;k<dates.length;k++){const d=new Date(dates[k])-new Date(dates[k-1]);if(d>0)intervals.push(d);}
+        const barMs=median(intervals),n=Math.min(leaderSeries.length,followerSeries.length);
+        if(!barMs||n<25)return [];
+        const lm=mean(leaderSeries.slice(0,n)),ls=stdev(leaderSeries.slice(0,n))||0.0001;
+        const shock=Math.max(0.0025,Math.abs(lm)+1.5*ls);
+        const events=[];
+        for(let i=10;i<n;i++){
+          const lr=leaderSeries[i],fr=followerSeries[i];
+          if(!Number.isFinite(lr)||!Number.isFinite(fr)||Math.abs(lr)<shock||Math.sign(lr)===0)continue;
+          const expectedSign=Math.sign(lr)*relationSign;
+          if(Math.sign(fr)===expectedSign||Math.sign(fr)===0)continue;
+          events.push({i,expectedSign});
+        }
+        return supportedDurations.filter(d=>barMs<=d.ms*1.35).map(d=>{
+          const bars=Math.max(1,Math.round(d.ms/barMs)),usable=events.filter(e=>e.i+bars<n);
+          const responses=usable.map(e=>{
+            let r=1;
+            for(let j=1;j<=bars;j++)r*=1+Number(followerSeries[e.i+j]||0);
+            return e.expectedSign*(r-1);
+          });
+          const wins=responses.filter(x=>x>0).length;
+          const avg=responses.length?mean(responses):0;
+          const adverse=responses.length?Math.min(...responses):0;
+          return {id:d.id,bars,n:responses.length,responseRate:responses.length?wins/responses.length*100:0,avgResponse:avg*100,maxAdverse:Math.abs(Math.min(0,adverse))*100};
+        }).filter(x=>x.n>0);
+      };
+      const currentState=(p,leaderSeries,followerSeries)=>{
+        const n=Math.min(leaderSeries.length,followerSeries.length),recent=Math.min(30,n);
+        const rc=corr(leaderSeries.slice(-recent),followerSeries.slice(-recent));
+        const relationSign=p.corr>=0?1:-1;
+        const leaderMove=Number(leaderSeries[n-1]||0),followerMove=Number(followerSeries[n-1]||0);
+        const moveWindow=leaderSeries.slice(-Math.min(60,n)),moveStd=stdev(moveWindow)||0.0001;
+        const meaningfulMove=Math.abs(leaderMove)>=Math.max(0.0025,moveStd*0.75);
+        const expectedSign=Math.sign(leaderMove)*relationSign;
+        const inverseDislocation=meaningfulMove&&Math.abs(followerMove)>0&&Math.sign(followerMove)!==expectedSign;
+        const base=Math.abs(p.corr),now=Math.abs(rc);
+        let status='ACTIVE';
+        if(!Number.isFinite(rc)||Math.sign(rc)!==Math.sign(p.corr)||now<0.25)status='FAILED';
+        else if(now<base*0.75)status='RESOLVING';
+        else{
+          const z=Math.abs(leaderMove)/(stdev(leaderSeries.slice(-Math.min(60,n)))||0.0001);
+          status=z>=2.5?'EXTENDED':'ACTIVE';
+        }
+        return {rollingCorrelation:rc,leaderMove,followerMove,expectedSign,inverseDislocation,status};
+      };
       symbols.forEach(a=>{matrix[a]={};symbols.forEach(b=>matrix[a][b]=null);});
       for(let i=0;i<symbols.length;i++){
         for(let j=i+1;j<symbols.length;j++){
           const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win===9999?100000:win);
           if(p.samples<20)continue;
           matrix[a][b]=matrix[b][a]=p;
-          if(Math.abs(p.corr)>=minR){const rel=relationshipTradeStats(ds.raw[a],ds.raw[b],p);pairs.push({a,b,...p,leader:rel.leader,follower:rel.follower,direction:rel.direction,probability:rel.resp.win5,response5:rel.resp.five,responseN:rel.resp.n});}
+          if(Math.abs(p.corr)<minR)continue;
+          const rel=relationshipTradeStats(ds.raw[a],ds.raw[b],p);
+          const relationSign=p.corr>=0?1:-1;
+          const latestA=Number(p.ra[p.ra.length-1]||0),latestB=Number(p.rb[p.rb.length-1]||0);
+          const leader= Math.abs(latestA)>=Math.abs(latestB)?a:b, follower=leader===a?b:a;
+          const leaderSeries=leader===a?p.ra:p.rb,followerSeries=follower===a?p.ra:p.rb;
+          const state=currentState(p,leaderSeries,followerSeries);
+          if(!state.inverseDislocation)continue;
+          const durations=durationStats(p,leaderSeries,followerSeries,relationSign);
+          if(!durations.length)continue;
+          const best=durations.slice().sort((x,y)=>(y.responseRate-x.responseRate)||(y.avgResponse-x.avgResponse)||(y.n-x.n))[0];
+          const avgResponse=best.avgResponse, capital=10000;
+          const gross=capital, estimatedCosts=(Number(document.getElementById('btSpread')?.value||5)+Number(document.getElementById('btSlippage')?.value||2))*2/10000;
+          const netExpected=avgResponse-estimatedCosts*100;
+          const riskPass=netExpected>0&&best.maxAdverse<=25&&gross<=50000;
+          const score=
+            Math.min(40,Math.abs(state.leaderMove)*1000)+
+            Math.min(30,best.responseRate*.30)+
+            Math.min(10,Math.log10(best.n+1)*5)+
+            Math.min(10,Math.max(0,best.avgResponse)*2)+
+            Math.min(10,p.stability*10);
+          pairs.push({
+            a,b,...p,leader,follower,direction:relationSign===1?'EXPECTED SAME DIRECTION':'EXPECTED INVERSE DIRECTION',
+            probability:best.responseRate,response5:best.avgResponse,responseN:best.n,
+            historicalDuration:best.id,historicalDurations:durations,
+            historicalMagnitude:best.avgResponse,maxAdverse:best.maxAdverse,
+            currentMove:state.leaderMove,currentFollowerMove:state.followerMove,
+            currentDislocation:Math.abs(state.leaderMove)+Math.abs(state.followerMove),
+            relationshipStatus:state.status,rollingCorrelation:state.rollingCorrelation,
+            inverseDislocation:true,threshold,capital,leverage:1,grossExposure:gross,
+            expectedResponse:avgResponse,netExpected,riskPass,
+            autoPaperEligible:best.responseRate>=threshold&&(state.status==='ACTIVE'||state.status==='EXTENDED')&&riskPass,
+            score
+          });
         }
       }
-      pairs.sort((a,b)=>(b.probability-a.probability)||(b.response5-a.response5)||(b.responseN-a.responseN));
-      // Strategy 004 publishes its own research output for the trader-facing CORRELATION 01 view.
-      window.__mteCorrelationTradeOpportunities=pairs.slice(0,100).map((p,i)=>({...p,rank:i+1}));
+      pairs.sort((a,b)=>(b.score-a.score)||(b.probability-a.probability)||(b.response5-a.response5)||(b.responseN-a.responseN));
+      // Strategy 004 publishes only current inverse/dislocation opportunities for its trader-facing view.
+      window.__mteCorrelationTradeOpportunities=pairs.slice(0,100).map((x,i)=>({...x,leader:x.leader||x.a,follower:x.follower||x.b,rank:i+1}));
       const shown=pairs.slice(0,100);
       const fmt=x=>x==null?'—':(x.corr>=0?'+':'')+x.corr.toFixed(2);
       const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(0,170,65,'+(0.28+.70*alpha)+')':'rgba(210,40,50,'+(0.20+.70*alpha)+')';};
-      const probabilityTop=shown.slice(0,10);heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+'<div class="mte-corr-prob-wrap"><div class="mte-corr-prob-title">TOP CORRELATION TRADE OPPORTUNITIES · BEST → WORST</div><div class="mte-corr-prob-row">'+probabilityTop.map((p,i)=>'<button type="button" class="mte-corr-prob" data-corr-a="'+p.a+'" data-corr-b="'+p.b+'"><span class="rank">'+(i+1)+'</span><b>'+p.leader+' → '+p.follower+'</b><strong>'+p.probability.toFixed(1)+'%</strong><small>5-bar response probability · '+p.direction.toLowerCase()+' · N='+p.responseN+'</small><em style="display:block;font-size:8px;color:#07883c;font-style:normal;margin-top:2px">avg response '+(p.response5>=0?'+':'')+p.response5.toFixed(2)+'%</em></button>').join('')+'</div></div>'+
+      const probabilityTop=shown.slice(0,10);heat.innerHTML='<div class="sub" style="margin-bottom:8px">'+symbols.length+' assets · '+pairs.length+' relationships above |r| ≥ '+minR.toFixed(2)+' · '+win+(win===9999?'':' bar')+' window · return correlation</div>'+'<div class="mte-corr-prob-wrap"><div class="mte-corr-prob-title">TOP CORRELATION TRADE OPPORTUNITIES · BEST → WORST</div><div class="mte-corr-prob-row">'+probabilityTop.map((p,i)=>{var ln=p.leader||p.a||'—',fn=p.follower||p.b||'—';return '<button type="button" class="mte-corr-prob" data-corr-a="'+p.a+'" data-corr-b="'+p.b+'"><span class="rank">'+(i+1)+'</span><b>'+ln+' → '+fn+'</b><strong>'+Number(p.probability||0).toFixed(1)+'%</strong><small>5-bar response probability · '+String(p.direction||'RELATIONSHIP').toLowerCase()+' · N='+Number(p.responseN||0)+'</small><em style="display:block;font-size:8px;color:#07883c;font-style:normal;margin-top:2px">avg response '+(Number(p.response5||0)>=0?'+':'')+Number(p.response5||0).toFixed(2)+'% · '+String(p.historicalDuration||'—')+'</em></button>';}).join('')+'</div></div>'+
         '<table style="border-collapse:collapse;font-size:10px;min-width:'+(symbols.length*58+100)+'px"><thead><tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px">ASSET</th>'+symbols.map(s=>'<th style="padding:5px;writing-mode:vertical-rl;transform:rotate(180deg);height:95px">'+s+'</th>').join('')+'</tr></thead><tbody>'+
         symbols.map(a=>'<tr><th style="position:sticky;left:0;background:#111;color:#fff;padding:5px;text-align:left">'+a+'</th>'+symbols.map(b=>{const p=matrix[a][b];return '<td style="background:'+(a===b?'#111':bg(p))+';color:#fff;border:1px solid #333;text-align:center;padding:6px;cursor:'+(p?'pointer':'default')+'" data-corr-a="'+a+'" data-corr-b="'+b+'">'+(a===b?'—':fmt(p))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';
       heat.querySelectorAll('[data-corr-a]').forEach(td=>td.addEventListener('click',()=>{
@@ -744,9 +834,8 @@
   };
 
   function init(){
-    // Correlation is a standalone research view. Initialise it first so failures
-    // in the separate Strategy Lab UI cannot prevent the Correlation page from rendering.
-    window.mteOpenCorrelationLab();
+    // CORRELATION 01 owns the trader-facing Correlation view. The legacy research
+    // renderer remains callable for research compatibility, but must not replace the trading workflow on startup.
     try{ addExpandedUI(); }catch(e){ console.warn('MTE Strategy Lab UI init skipped:',e); }
     const s=document.getElementById('mteUniverseStatus');
     if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
