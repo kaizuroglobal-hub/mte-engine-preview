@@ -272,11 +272,33 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
  <tr><td>Broker</td><td>None</td><td><span class="badge gray">NOT CONNECTED</span></td><td>—</td></tr>
  </tbody></table></section>
 
- <section id="events" class="view panel"><div class="panelhead"><div><h2>Event Monitor</h2><div class="sub">News and macro events that can change the opportunity set.</div></div><b>GDELT · LIVE</b></div>
+ <section id="events" class="view panel"><div class="panelhead"><div><h2>Event Monitor</h2><div class="sub">News and macro events that can change the opportunity set. Use the source links to verify event timing and releases.</div></div><b>GDELT · LIVE</b></div>
  <div class="grid">
-  <div class="box"><h3>MACRO</h3><div class="news"><b>US rates / Fed expectations</b>Rates remain the dominant cross-asset transmission channel.</div><div class="news"><b>US growth expectations</b>Growth-sensitive assets remain responsive to rates moves.</div><div class="news"><b>USD</b>Dollar strength is being used as a confirmation variable.</div></div>
-  <div class="box"><h3>COMPANY / SECTOR</h3><div class="news"><b>AI / Semiconductors</b>AI capex and semiconductor leadership remain active signal inputs.</div><div class="news"><b>Technology</b>QQQ / SOXX relative strength is monitored for confirmation.</div><div class="news"><b>Rates-sensitive assets</b>Treasuries and growth equities are monitored jointly.</div></div>
-  <div class="box"><h3>ENTRY TIMING</h3><div class="row"><span>Signal state</span><b class="good">QUALIFIED</b></div><div class="row"><span>Entry quality</span><b>WAIT / CONFIRM</b></div><div class="row"><span>Chase protection</span><b>ACTIVE</b></div><div class="row"><span>Next scan</span><b>EVENT-DRIVEN</b></div></div>
+  <div class="box"><h3>MACRO</h3>
+   <div class="news"><b>US rates / Fed expectations</b>Rates remain the dominant cross-asset transmission channel.<div style="margin-top:7px"><a href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer">FOMC CALENDAR ↗</a></div></div>
+   <div class="news"><b>US growth / inflation / labour</b>Core US releases can change rates, USD and risk-asset positioning.<div style="margin-top:7px"><a href="https://www.bls.gov/schedule/news_release/" target="_blank" rel="noopener noreferrer">BLS RELEASE CALENDAR ↗</a></div></div>
+   <div class="news"><b>US GDP / income / trade</b>BEA releases provide the scheduled macro data stream.<div style="margin-top:7px"><a href="https://www.bea.gov/news/schedule" target="_blank" rel="noopener noreferrer">BEA RELEASE SCHEDULE ↗</a></div></div>
+  </div>
+  <div class="box"><h3>GLOBAL CENTRAL BANKS</h3>
+   <div class="news"><b>ECB</b>Euro-area monetary-policy meetings and press conferences.<div style="margin-top:7px"><a href="https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html" target="_blank" rel="noopener noreferrer">ECB MEETING CALENDAR ↗</a></div></div>
+   <div class="news"><b>Bank of Japan</b>Japanese monetary-policy meetings and release schedule.<div style="margin-top:7px"><a href="https://www.boj.or.jp/en/mopo/mpmsche_minu/" target="_blank" rel="noopener noreferrer">BOJ POLICY CALENDAR ↗</a></div></div>
+   <div class="news"><b>Reserve Bank of Australia</b>Australian monetary-policy decisions, publications and speeches.<div style="margin-top:7px"><a href="https://www.rba.gov.au/schedules-events/calendar/" target="_blank" rel="noopener noreferrer">RBA CALENDAR ↗</a></div></div>
+  </div>
+  <div class="box"><h3>NEWS / MARKET EVENTS</h3>
+   <div class="news"><b>GDELT</b>Global news-event monitoring used by the MTE event layer.<div style="margin-top:7px"><a href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer">GDELT PROJECT ↗</a></div></div>
+   <div class="row"><span>Signal state</span><b class="good">QUALIFIED</b></div><div class="row"><span>Entry quality</span><b>WAIT / CONFIRM</b></div><div class="row"><span>Chase protection</span><b>ACTIVE</b></div><div class="row"><span>Next scan</span><b>EVENT-DRIVEN</b></div>
+  </div>
+ </div>
+ <div class="box" style="margin-top:15px"><h3>EVENT SOURCES</h3><div class="sub">Official calendars are external verification sources; MTE does not place orders from these links.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+   <a class="badge gray" style="text-decoration:none" href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer">FED / FOMC</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.bls.gov/schedule/news_release/" target="_blank" rel="noopener noreferrer">US BLS</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.bea.gov/news/schedule" target="_blank" rel="noopener noreferrer">US BEA</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html" target="_blank" rel="noopener noreferrer">ECB</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.boj.or.jp/en/mopo/mpmsche_minu/" target="_blank" rel="noopener noreferrer">BOJ</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.rba.gov.au/schedules-events/calendar/" target="_blank" rel="noopener noreferrer">RBA</a>
+   <a class="badge gray" style="text-decoration:none" href="https://www.gdeltproject.org/" target="_blank" rel="noopener noreferrer">GDELT</a>
+  </div>
  </div></section>
 </main>
 <footer><span>NO BROKER CONNECTED · INTERNAL PAPER EXECUTION ONLY</span><span>109 ASSETS · STRATEGY 001 · MACRO 01</span></footer>
