@@ -506,6 +506,9 @@
     const rolling=[];const n=p.ra.length,step=Math.max(20,Math.floor(n/5));
     for(let i=step;i<=n;i+=step)rolling.push(corr(p.ra.slice(Math.max(0,i-step),i),p.rb.slice(Math.max(0,i-step),i)));
     const direction=lag.lag>0?a+' leads '+b:lag.lag<0?b+' leads '+a:'same-bar relationship';
+    detail.closest('.mte-corr-section').querySelector('.mte-collapse-body').classList.remove('is-collapsed');
+    const toggle=detail.closest('.mte-corr-section').querySelector('.mte-collapse-toggle');toggle.textContent='⌃';toggle.setAttribute('aria-expanded','true');toggle.title='Collapse';
+    const btAsset=document.getElementById('btAsset'),canA=btAsset&&Array.from(btAsset.options).some(o=>o.value===a),canB=btAsset&&Array.from(btAsset.options).some(o=>o.value===b),tradeSymbol=canB?b:(canA?a:null);
     detail.innerHTML='<h3>RELATIONSHIP EXPLORER · '+a+' ↔ '+b+'</h3>'+
       '<div class="row"><span>Return correlation</span><b>'+(p.corr>=0?'+':'')+p.corr.toFixed(3)+'</b></div>'+
       '<div class="row"><span>Samples</span><b>'+p.samples.toLocaleString()+'</b></div>'+
@@ -514,7 +517,13 @@
       '<div class="row"><span>Response after large '+a+' move</span><b>1 bar '+resp.one.toFixed(2)+'% · 5 bars '+resp.five.toFixed(2)+'% · 20 bars '+resp.twenty.toFixed(2)+'%</b></div>'+
       '<div class="row"><span>Aligned 5-bar response win rate</span><b>'+resp.win5.toFixed(1)+'%</b></div>'+
       '<div class="sub" style="margin-top:10px">Lead/lag is measured on synchronized return observations. Conditional response is measured after '+a+' moves more than 1.5 standard deviations from its sample mean. These statistics are descriptive research outputs, not trade recommendations.</div>'+
+      (tradeSymbol?'<div style="margin-top:12px"><button type="button" class="primary" id="mteCorrelationBacktest">BACKTEST '+tradeSymbol+'</button></div>':'')+
       '<div style="overflow:auto;margin-top:10px"><table><thead><tr><th>WINDOW</th><th>CORRELATION</th></tr></thead><tbody>'+rolling.map((x,i)=>'<tr><td>segment '+(i+1)+'</td><td>'+(x>=0?'+':'')+x.toFixed(3)+'</td></tr>').join('')+'</tbody></table></div>';
+    const go=document.getElementById('mteCorrelationBacktest');
+    if(go)go.onclick=()=>{
+      if(btAsset&&tradeSymbol)btAsset.value=tradeSymbol;
+      const nav=document.querySelector('.nav button[data-view="backtest"]');if(nav)nav.click();
+    };
   }
   function addExpandedUI(){
     if(document.getElementById('mteExpandedLab'))return;
