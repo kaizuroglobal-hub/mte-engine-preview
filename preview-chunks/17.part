@@ -45,7 +45,6 @@ var META={
  mactech:{label:'MACTECH 01',desc:'Independent macro and technical confluence opportunity.'},
  correlation:{label:'CORRELATION 01',desc:'Cross-asset relationship, divergence and lead/lag opportunity.'}
 };
-var selected='all';
 var OPPS={
  macro:[
   {id:'MTE-M-000184',asset:'NVDA',name:'NVIDIA',side:'LONG',type:'Macro / event opportunity',evidence:'Macro transmission + historical response',horizon:'1–24H',status:'READY',entry:'After confirmation',invalid:'Macro thesis invalidation',expected:'Positive response if transmission persists',why:['Macro regime supports setup','Expected transmission identified','Historical analogue supports response','Risk gate passed']},
@@ -60,6 +59,44 @@ var OPPS={
  ],
  correlation:[]
 };
+async function loadCorrelationStrategyOpportunities(){
+ if(typeof window.mteRunCorrelationLab!=='function')throw new Error('CORRELATION LAB is not available');
+ await window.mteRunCorrelationLab();
+ var ps=window.__mteCorrelationTradeOpportunities||[];
+ OPPS.correlation=ps.map(function(p,i){
+   var leaderReturn=(p.leader===''+p.a?p.ra[p.ra.length-1]:p.rb[p.rb.length-1]);
+   var expected=leaderReturn*(p.corr>=0?1:-1);
+   var side=expected>=0?'LONG':'SHORT';
+   return {
+    id:'MTE-C-'+String(i+1).padStart(4,'0'),
+    asset:p.follower,
+    name:p.leader+' → '+p.follower,
+    side:side,
+    type:'Relationship trade · '+p.direction,
+    evidence:'r '+(p.corr>=0?'+':'')+p.corr.toFixed(2)+' · 5-bar response '+p.probability.toFixed(1)+'% · N='+p.responseN,
+    horizon:'1–24H',
+    status:'RESEARCH',
+    entry:'Leader move → follower response',
+    invalid:'Relationship failure / response does not reassert',
+    expected:(side==='LONG'?'Follower expected higher':'Follower expected lower'),
+    why:[
+      'Leader: '+p.leader,
+      'Follower: '+p.follower,
+      'Relationship: '+p.direction,
+      'Historical 5-bar response: '+p.probability.toFixed(1)+'% (N='+p.responseN+')'
+    ],
+    leader:p.leader,
+    follower:p.follower,
+    correlation:p.corr,
+    probability:p.probability,
+    response5:p.response5,
+    responseN:p.responseN
+   };
+ });
+ return OPPS.correlation;
+}
+var selected='all';
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
 function rows(){var a=[];Object.keys(OPPS).forEach(function(k){OPPS[k].forEach(function(o){a.push({s:k,o:o});});});return selected==='all'?a:a.filter(function(x){return x.s===selected;});}
 function card(x){
 var o=x.o,s=x.s;
@@ -75,102 +112,16 @@ document.getElementById('mtePass').onclick=function(){d.classList.add('is-hidden
 document.getElementById('mteEnter').onclick=function(){var b=document.getElementById('mteEnter');var t=[o.id,o.asset,o.name,o.side,0,0,0,o.horizon,0,0];if(typeof openDynamicPaper==='function')openDynamicPaper(t,b);b.textContent='PAPER OPENED';b.disabled=true;};
 d.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function renderCorrelationPositions(){
- var rows=document.getElementById('positionRows');if(!rows)return;
- var ps=window.__mteCorrelationPaperPositions||[];
- if(!ps.length){rows.innerHTML='<tr><td colspan="8">No paper positions.</td></tr>';return;}
- rows.innerHTML=ps.map(function(p){return '<tr><td>'+esc(p.id)+'</td><td>'+esc(p.asset)+'</td><td>'+esc(p.side)+'</td><td>A$'+Number(p.capital).toFixed(0)+'</td><td>'+Number(p.riskPct).toFixed(1)+'%</td><td>+'+Number(p.expectedResponse).toFixed(2)+'%</td><td>'+esc(p.duration)+'</td><td><span class="badge">'+esc(p.status)+'</span></td></tr>';}).join('');
- var pos=document.getElementById('pos');if(pos)pos.textContent=String(ps.length);
-}
-function loadStoredCorrelationPositions(){try{window.__mteCorrelationPaperPositions=JSON.parse(localStorage.getItem('MTE_CORR_PAPER_POSITIONS')||'[]');}catch(e){window.__mteCorrelationPaperPositions=[];}renderCorrelationPositions();}
-window.mteCorrelationPaperEnter=function(o,leverage,automatic){
- var lev=Math.max(1,Number(leverage||1)),ps=window.__mteCorrelationPaperPositions||[],key=o.id+'|'+o.asOf;
- if(ps.some(function(x){return x.key===key;}))return false;if(ps.length>=5)return false;
- var capital=Number(o.capital||10000),gross=capital*lev;
- ps.push({key:key,id:'CORR-'+String(Date.now()).slice(-8),asset:o.follower,side:o.side,capital:capital,leverage:lev,grossExposure:gross,entry:o.currentFollowerMove,currentPnL:0,expectedResponse:Number(o.expectedResponse||0),duration:o.historicalDuration,relationshipStatus:o.relationshipStatus,invalidation:'Relationship failure / response does not reassert',openedAt:new Date().toISOString(),riskPct:1*lev,status:'OPEN · '+(automatic?'AUTO 1×':'PAPER')});
- window.__mteCorrelationPaperPositions=ps;
- try{localStorage.setItem('MTE_CORR_PAPER_POSITIONS',JSON.stringify(ps));}catch(e){}
- renderCorrelationPositions();
- var toast=document.querySelector('.toast');if(toast){toast.textContent='CORRELATION 01 · PAPER TRADE OPENED · '+o.follower+' · '+lev+'×';toast.style.display='block';setTimeout(function(){toast.style.display='none';},2600);}
- return true;
-};
-function bindCorrelationPositionRefresh(){var b=document.querySelector('.nav button[data-view="positions"]');if(b&&!b.dataset.corrBound){b.dataset.corrBound='1';b.addEventListener('click',renderCorrelationPositions);}}
-async function loadCorrelationStrategyOpportunities(){
- if(typeof window.mteRunCorrelationLab!=='function')throw new Error('CORRELATION LAB is not available');
- await window.mteRunCorrelationLab({headless:true});
- var ps=window.__mteCorrelationTradeOpportunities||[],now=new Date().toISOString().slice(0,10);
- OPPS.correlation=ps.map(function(p,i){
-   var expectedSign=Math.sign(Number(p.currentMove||0))*(p.corr>=0?1:-1),side=expectedSign>=0?'LONG':'SHORT',auto=!!p.autoPaperEligible;
-   return {id:'MTE-C-'+String(i+1).padStart(4,'0'),asset:p.follower,name:p.leader+' → '+p.follower,side:side,type:'INVERSE DISLOCATION',evidence:'Historical response '+p.probability.toFixed(1)+'% · N='+p.responseN,horizon:p.historicalDuration,status:auto?'AUTO QUALIFIED':p.relationshipStatus,entry:'Current inverse dislocation',invalid:'Relationship failure / response does not reassert',expected:(side==='LONG'?'Follower expected higher':'Follower expected lower'),why:[p.leader+' '+(p.currentMove>=0?'+':'')+(p.currentMove*100).toFixed(2)+'%',p.follower+' '+(p.currentFollowerMove>=0?'+':'')+(p.currentFollowerMove*100).toFixed(2)+'%','Historical response: '+p.probability.toFixed(1)+'% (N='+p.responseN+')','Best historical duration: '+p.historicalDuration,'Relationship status: '+p.relationshipStatus],leader:p.leader,follower:p.follower,correlation:p.corr,probability:p.probability,responseN:p.responseN,response5:p.response5,historicalDuration:p.historicalDuration,historicalDurations:p.historicalDurations,expectedResponse:p.expectedResponse,maxAdverse:p.maxAdverse,currentMove:p.currentMove,currentFollowerMove:p.currentFollowerMove,relationshipStatus:p.relationshipStatus,rollingCorrelation:p.rollingCorrelation,capital:p.capital||10000,leverage:1,grossExposure:p.grossExposure||10000,netExpected:p.netExpected,riskPass:p.riskPass,threshold:p.threshold||75,autoPaperEligible:auto,asOf:now,rank:p.rank};
- });
- loadStoredCorrelationPositions();bindCorrelationPositionRefresh();
- OPPS.correlation.filter(function(o){return o.autoPaperEligible;}).forEach(function(o){window.mteCorrelationPaperEnter(o,1,true);});
- return OPPS.correlation;
-}
-function card(x){
-var o=x.o,s=x.s;
-if(s==='correlation')return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">RANK '+esc(o.rank||'—')+'</div><div class="mte-op-symbol">'+esc(o.leader)+' → '+esc(o.follower)+'</div><div class="mte-op-name">INVERSE DISLOCATION</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">CURRENT MOVE · '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'% / '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-op-grid"><div><small>HISTORICAL RESPONSE</small><b>'+o.probability.toFixed(1)+'%</b></div><div><small>N</small><b>'+o.responseN+'</b></div><div><small>BEST DURATION</small><b>'+esc(o.historicalDuration)+'</b></div><div><small>RELATIONSHIP</small><b>'+esc(o.relationshipStatus)+'</b></div></div><div class="mte-op-actions"><button data-detail="'+esc(o.id)+'">QUALIFY</button><button class="primary" data-enter="'+esc(o.id)+'">'+(o.autoPaperEligible?'AUTO 1× QUALIFIED':'ENTER PAPER')+'</button></div></div>';
-return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">'+esc(o.id)+'</div><div class="mte-op-symbol">'+esc(o.asset)+'</div><div class="mte-op-name">'+esc(o.name)+'</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">'+esc(o.type)+'</div><div class="mte-op-grid"><div><small>STRATEGY</small><b>'+META[s].label+'</b></div><div><small>EVIDENCE</small><b>'+esc(o.evidence)+'</b></div><div><small>HORIZON</small><b>'+esc(o.horizon)+'</b></div><div><small>STATUS</small><b>'+esc(o.status)+'</b></div></div><div class="mte-op-actions"><button data-detail="'+esc(o.id)+'">VIEW OPPORTUNITY</button><button class="primary" data-enter="'+esc(o.id)+'">ENTER PAPER</button></div></div>';
-}
-function detail(id){
-var f=find(id);if(!f)return;var o=f.o,s=f.s,d=document.getElementById('mteOpportunityDetail');if(!d)return;d.classList.remove('is-hidden');
-if(s==='correlation'){
- d.innerHTML='<div class="mte-detail-head"><button id="mteBack">← BACK TO OPPORTUNITIES</button><span class="mte-op-badge">CORRELATION 01</span></div><div class="mte-detail-title"><div><div class="eyebrow">CORRELATION 01</div><h2>'+esc(o.leader)+' → '+esc(o.follower)+'</h2><div class="sub">INVERSE DISLOCATION · '+esc(o.side)+'</div></div><strong>'+esc(o.relationshipStatus)+'</strong></div><div class="mte-detail-grid"><div class="box"><h3>WHY THIS IS AN OPPORTUNITY</h3><div class="mte-check">✓ '+esc(o.leader)+' current move: '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'%</div><div class="mte-check">✓ '+esc(o.follower)+' current move: '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-check">✓ Historical response: '+o.probability.toFixed(1)+'% · N='+o.responseN+'</div><div class="mte-check">✓ Best historical duration: '+esc(o.historicalDuration)+'</div><div class="mte-check">✓ Relationship remains '+esc(o.relationshipStatus)+'</div></div><div class="box"><h3>TRADE ECONOMICS · 1× BASELINE</h3><div class="row"><span>Capital</span><b>A$'+Number(o.capital).toFixed(0)+'</b></div><div class="row"><span>Gross exposure</span><b>A$'+Number(o.capital).toFixed(0)+'</b></div><div class="row"><span>Expected historical response</span><b>+'+Number(o.expectedResponse).toFixed(2)+'%</b></div><div class="row"><span>Expected 1× outcome</span><b>A$'+(Number(o.capital)*Number(o.expectedResponse)/100).toFixed(2)+'</b></div><div class="row"><span>Historical max adverse</span><b>'+Number(o.maxAdverse).toFixed(2)+'%</b></div></div><div class="box"><h3>QUALIFICATION</h3><div class="row"><span>Historical response threshold</span><b>'+Number(o.threshold||75).toFixed(0)+'%</b></div><div class="row"><span>Relationship status</span><b>'+esc(o.relationshipStatus)+'</b></div><div class="row"><span>Risk / economics</span><b class="'+(o.riskPass?'good':'warn')+'">'+(o.riskPass?'PASS':'FAIL')+'</b></div><div class="row"><span>Paper action</span><b>'+(o.autoPaperEligible?'AUTO 1×':'MANUAL')+'</b></div></div></div><div class="box" style="margin-top:12px"><h3>HISTORICAL DURATION</h3><table><thead><tr><th>DURATION</th><th>RESPONSE</th><th>N</th><th>AVG RESPONSE</th></tr></thead><tbody>'+o.historicalDurations.map(function(x){return '<tr><td><b>'+x.id+'</b></td><td>'+x.responseRate.toFixed(1)+'%</td><td>'+x.n+'</td><td>'+(x.avgResponse>=0?'+':'')+x.avgResponse.toFixed(2)+'%</td></tr>';}).join('')+'</tbody></table></div><div class="box" style="margin-top:12px"><h3>LEVERAGE SCENARIOS</h3><div class="mte-op-actions">'+[1,2,3,5,10].map(function(x){return '<button type="button" data-corr-lev="'+x+'">'+x+'× · A$'+(Number(o.capital)*x).toFixed(0)+'</button>';}).join('')+'</div></div><div class="mte-detail-actions"><button id="mtePass">PASS</button><button class="primary" id="mteEnter">ENTER PAPER TRADE · 1×</button></div>';
- document.getElementById('mteBack').onclick=function(){d.classList.add('is-hidden');};document.getElementById('mtePass').onclick=function(){d.classList.add('is-hidden');};
- d.querySelectorAll('[data-corr-lev]').forEach(function(b){b.onclick=function(){var lev=Number(b.getAttribute('data-corr-lev'));d.querySelectorAll('[data-corr-lev]').forEach(function(x){x.classList.toggle('primary',x===b);});document.getElementById('mteEnter').textContent='ENTER PAPER TRADE · '+lev+'×';document.getElementById('mteEnter').dataset.lev=String(lev);};});
- document.getElementById('mteEnter').onclick=function(){var lev=Number(this.dataset.lev||1);if(window.mteCorrelationPaperEnter(o,lev,false)){this.textContent='PAPER OPENED · '+lev+'×';this.disabled=true;}};
-}else{
- d.innerHTML='<div class="mte-detail-head"><button id="mteBack">← BACK TO OPPORTUNITIES</button><span class="mte-op-badge">'+META[s].label+'</span></div><div class="mte-detail-title"><div><div class="eyebrow">'+META[s].label+'</div><h2>'+esc(o.asset)+' · '+esc(o.side)+'</h2><div class="sub">'+esc(o.type)+'</div></div><strong>'+esc(o.status)+'</strong></div><div class="mte-detail-grid"><div class="box"><h3>WHY THIS IS AN OPPORTUNITY</h3>'+o.why.map(function(x){return '<div class="mte-check">✓ '+esc(x)+'</div>';}).join('')+'</div><div class="box"><h3>TRADE PLAN</h3><div class="row"><span>Entry</span><b>'+esc(o.entry)+'</b></div><div class="row"><span>Invalidation</span><b>'+esc(o.invalid)+'</b></div><div class="row"><span>Expected response</span><b>'+esc(o.expected)+'</b></div><div class="row"><span>Horizon</span><b>'+esc(o.horizon)+'</b></div><div class="row"><span>Re-entry</span><b>New qualifying structure + renewed evidence</b></div></div><div class="box"><h3>RISK GATE</h3><div class="row"><span>Risk / trade</span><b>1.0%</b></div><div class="row"><span>Max concurrent</span><b>5</b></div><div class="row"><span>Exposure</span><b>Check portfolio</b></div><div class="row"><span>Thesis failure</span><b>EXIT</b></div></div></div><div class="mte-detail-engine"><b>OPPORTUNITY ENGINE</b><span>'+META[s].desc+' Qualification happens here; the trader sees the resulting decision, not the machinery.</span></div><div class="mte-detail-actions"><button id="mtePass">PASS</button><button class="primary" id="mteEnter">ENTER PAPER TRADE</button></div>';
- document.getElementById('mteBack').onclick=function(){d.classList.add('is-hidden');};document.getElementById('mtePass').onclick=function(){d.classList.add('is-hidden');};document.getElementById('mteEnter').onclick=function(){var b=document.getElementById('mteEnter');var t=[o.id,o.asset,o.name,o.side,0,0,0,o.horizon,0,0];if(typeof openDynamicPaper==='function')openDynamicPaper(t,b);b.textContent='PAPER OPENED';b.disabled=true;};
-}
-d.scrollIntoView({behavior:'smooth',block:'start'});
-}
 function bind(){
 document.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-detail'));};});
 document.querySelectorAll('[data-enter]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-enter'));};});
-document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=async function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(selected==='correlation'){if(list)list.innerHTML='<div class="sub" style="padding:20px">LOADING CORRELATION 01…</div>';try{await loadCorrelationStrategyOpportunities();renderList();}catch(e){if(list)list.innerHTML='<div class="box"><h3>CORRELATION 01 ERROR</h3><div class="sub">'+esc(e&&e.message||e)+'</div></div>';}}else{renderList();}};});
+document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=async function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});if(selected==='correlation'){var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(list)list.innerHTML='<div class="sub" style="padding:20px">LOADING CORRELATION 01 FROM CORRELATION LAB…</div>';try{await loadCorrelationStrategyOpportunities();}catch(e){if(list)list.innerHTML='<div class="sub" style="padding:20px">CORRELATION 01 ERROR · '+esc(e.message||e)+'</div>';return;}}renderList();};});
 }
 function renderList(){
 var m=document.getElementById('mteOpportunityWorkspace');if(!m)return;
-var list=m.querySelector('.mte-op-grid-list');if(!list)return;
-try{
- var data=rows();
- list.innerHTML=data.map(card).join('');
- bind();
-}catch(e){
- list.innerHTML='<div class="box"><h3>OPPORTUNITY ENGINE ERROR</h3><div class="sub">'+esc(e&&e.message||e)+'</div></div>';
-}
+m.querySelector('.mte-op-grid-list').innerHTML=rows().map(card).join('');bind();
 }
 function build(){
-function bindStrategyButtons(){
- var buttons=document.querySelectorAll('.strategy-btn[data-strategy]');
- buttons.forEach(function(btn){
-   btn.onclick=function(){
-     var strategy=btn.getAttribute('data-strategy');
-     buttons.forEach(function(x){x.classList.toggle('active',x===btn);});
-     var meta={
-       macro:{eyebrow:'MACRO 01 · STRATEGY 001',title:'Macro / Event-Driven Trading',sub:'News → macro transmission → historical analogue → cross-asset confirmation → risk → entry timing.'},
-       technical:{eyebrow:'TECHNICAL 01 · STRATEGY 002',title:'Technical / Trend + Momentum Trading',sub:'Trend → momentum → structure → volatility → entry timing → risk.'},
-       mactech:{eyebrow:'MACTECH 01 · STRATEGY 003',title:'Macro + Technical Confluence',sub:'Independent macro evidence + independent technical evidence → confluence → risk → entry timing.'},
-       correlation:{eyebrow:'CORRELATION 01 · STRATEGY 004',title:'Cross-Asset Inverse Dislocation',sub:'Largest current mover → inverse relationship → historical response → duration → relationship state → paper trade.'}
-     }[strategy];
-     if(meta){
-       var e=document.getElementById('strategyEyebrow'),t=document.getElementById('strategyTitle'),sub=document.getElementById('strategySub');
-       if(e)e.textContent=meta.eyebrow;if(t)t.textContent=meta.title;if(sub)sub.textContent=meta.sub;
-     }
-     if(strategy==='correlation'){
-       var corrNav=document.querySelector('.nav button[data-view="correlation"]');
-       if(corrNav)corrNav.click();
-       return;
-     }
-     var tradeNav=document.querySelector('.nav button[data-view="trades"]');
-     if(tradeNav)tradeNav.click();
-     selected=strategy;
-     document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-op-filter')===strategy);});
-     renderList();
-   };
- });
-}
 var st=document.createElement('style');
 st.textContent='.switch,.head,#strategySummary{display:none!important}.nav{margin-top:0!important}.nav button[data-view="trades"]{font-size:0}.nav button[data-view="trades"]:after{content:"OPPORTUNITIES";font-size:12px}.mte-work-head{display:flex;justify-content:space-between;align-items:end;gap:20px}.mte-work-head h2{margin:5px 0;font-size:22px}.mte-work-count{font-size:10px;font-weight:900;border:1px solid #cdd4db;padding:6px 8px;border-radius:4px}.mte-op-filter{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0}.mte-op-filter button{padding:8px 11px;border:1px solid #cdd4db;background:#fff;border-radius:4px;font-size:10px;font-weight:800;color:#596570}.mte-op-filter button.active{background:#18212b;color:#fff;border-color:#18212b}.mte-op-flow{display:flex;gap:9px;align-items:center;margin:13px 0;color:#68737e;font-size:9px;font-weight:900}.mte-op-grid-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.mte-op-card{background:#fff;border:1px solid #d7dde3;border-radius:5px;padding:15px}.mte-op-card-top,.mte-detail-head,.mte-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.mte-op-id{font-size:9px;color:#89939d}.mte-op-symbol{font-size:22px;font-weight:800;margin-top:4px}.mte-op-name,.mte-op-type{font-size:11px;color:#697581}.mte-op-side{padding:5px 8px;border:1px solid #1aa46e;color:#15875b;background:#f0faf6;font-size:9px;font-weight:900;border-radius:3px}.mte-op-type{margin:12px 0;border-top:1px solid #edf0f2;padding-top:10px;font-weight:700;color:#303b45}.mte-op-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mte-op-grid div{border-top:1px solid #edf0f2;padding-top:8px}.mte-op-grid small{display:block;font-size:8px;color:#7b858f}.mte-op-grid b{display:block;font-size:10px;margin-top:3px}.mte-op-actions,.mte-detail-actions{display:flex;gap:7px;margin-top:13px}.mte-op-actions button,.mte-detail-actions button{flex:1;padding:9px;border:1px solid #cdd4db;background:#fff;border-radius:3px;font-size:10px;font-weight:800}.mte-op-actions .primary,.mte-detail-actions .primary{background:#18212b;color:#fff;border-color:#18212b}.mte-op-detail-view{margin-top:15px}.mte-op-detail-view.is-hidden{display:none}.mte-detail-title{margin:14px 0}.mte-detail-title h2{font-size:28px;margin:4px 0}.mte-detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.mte-check{padding:9px 0;border-bottom:1px solid #edf0f2;font-size:11px}.mte-detail-engine{margin-top:12px;padding:11px;border-left:3px solid #18212b;background:#f7f9fb;font-size:10px}.mte-detail-engine span{display:block;color:#66727d;margin-top:3px}@media(max-width:1050px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr}.mte-op-flow{flex-wrap:wrap}}';
 document.head.appendChild(st);
@@ -179,7 +130,6 @@ var old=document.getElementById('mteOpportunityEngine');if(old)old.remove();
 var t=document.getElementById('trades');if(!t)return;
 t.innerHTML='<div id="mteOpportunityWorkspace"><div class="mte-work-head"><div><div class="eyebrow">MTE OPPORTUNITIES</div><h2>What can I trade right now?</h2><div class="sub">Find → qualify → understand → plan → decide. Strategy research is hidden behind the opportunity.</div></div><div class="mte-work-count">4 STRATEGIES</div></div><div class="mte-op-filter"><button class="active" data-op-filter="all">ALL</button><button data-op-filter="macro">MACRO 01</button><button data-op-filter="technical">TECHNICAL 01</button><button data-op-filter="mactech">MACTECH 01</button><button data-op-filter="correlation">CORRELATION 01</button></div><div class="mte-op-flow"><span>FIND</span><b>→</b><span>QUALIFY</span><b>→</b><span>UNDERSTAND</span><b>→</b><span>PLAN</span><b>→</b><span>DECIDE</span></div><div class="mte-op-grid-list"></div><div id="mteOpportunityDetail" class="mte-op-detail-view is-hidden"></div></div>';
 renderList();
-bindStrategyButtons();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
 })();
@@ -211,26 +161,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         });
         view.classList.add('active');
         if(target==='correlation'){
-          var cv=document.getElementById('correlation');
-          if(cv){
-            cv.innerHTML='<div id="mteCorrelationOpportunityWorkspace"><div class="mte-work-head"><div><div class="eyebrow">CORRELATION 01</div><h2>What can I trade right now?</h2><div class="sub">Inverse dislocation → historical response → duration → relationship state → paper trade.</div></div><div class="mte-work-count">STRATEGY 004</div></div><div class="mte-op-flow"><span>FIND</span><b>→</b><span>QUALIFY</span><b>→</b><span>MANAGE</span></div><div id="mteCorrelationOpportunityStatus" class="sub" style="margin:10px 0 14px">LOADING CORRELATION 01…</div><div id="mteCorrelationOpportunityList" class="mte-op-grid-list"></div><div id="mteCorrelationOpportunityDetail" class="mte-op-detail-view is-hidden"></div></div>';
-            loadCorrelationStrategyOpportunities().then(function(list){
-              var mount=document.getElementById('mteCorrelationOpportunityList');
-              var status=document.getElementById('mteCorrelationOpportunityStatus');
-              if(status)status.textContent=list.length+' CURRENT INVERSE DISLOCATIONS · 75% RESPONSE GATE · PAPER ONLY';
-              if(mount)mount.innerHTML=list.map(function(o){
-                return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">RANK '+esc(o.rank||'—')+'</div><div class="mte-op-symbol">'+esc(o.leader)+' → '+esc(o.follower)+'</div><div class="mte-op-name">INVERSE DISLOCATION</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">CURRENT MOVE · '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'% / '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-op-grid"><div><small>HISTORICAL RESPONSE</small><b>'+Number(o.probability).toFixed(1)+'%</b></div><div><small>N</small><b>'+o.responseN+'</b></div><div><small>BEST DURATION</small><b>'+esc(o.historicalDuration)+'</b></div><div><small>RELATIONSHIP</small><b>'+esc(o.relationshipStatus)+'</b></div></div><div class="mte-op-actions"><button data-corr-detail="'+esc(o.id)+'">QUALIFY</button><button class="primary" data-corr-enter="'+esc(o.id)+'">'+(o.autoPaperEligible?'AUTO 1× QUALIFIED':'ENTER PAPER')+'</button></div></div>';
-              }).join('');
-              cv.querySelectorAll('[data-corr-detail]').forEach(function(b){b.onclick=function(){
-                var o=list.find(function(x){return x.id===b.getAttribute('data-corr-detail')});if(!o)return;
-                var d=document.getElementById('mteCorrelationOpportunityDetail');if(!d)return;d.classList.remove('is-hidden');
-                d.innerHTML='<div class="box" style="margin-top:14px"><div class="mte-detail-head"><div><div class="eyebrow">CORRELATION 01 · QUALIFY</div><h2>'+esc(o.leader)+' → '+esc(o.follower)+'</h2><div class="sub">'+esc(o.side)+' · '+esc(o.relationshipStatus)+'</div></div><button data-corr-close>×</button></div><div class="mte-detail-grid"><div class="box"><h3>WHY NOW</h3><div class="mte-check">✓ Current trigger: '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'%</div><div class="mte-check">✓ Follower move: '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-check">✓ Historical response: '+Number(o.probability).toFixed(1)+'% · N='+o.responseN+'</div></div><div class="box"><h3>DURATION</h3><div class="mte-check">✓ Best historical duration: <b>'+esc(o.historicalDuration)+'</b></div>'+o.historicalDurations.map(function(x){return '<div class="mte-check">'+x.id+' · '+x.responseRate.toFixed(1)+'% · N='+x.n+'</div>';}).join('')+'</div><div class="box"><h3>MANAGE</h3><div class="mte-check">✓ Relationship: '+esc(o.relationshipStatus)+'</div><div class="mte-check">✓ Expected response: '+Number(o.expectedResponse).toFixed(2)+'%</div><div class="mte-check">✓ Max adverse: '+Number(o.maxAdverse).toFixed(2)+'%</div><div class="mte-detail-actions"><button data-corr-close>PASS</button><button class="primary" data-corr-paper>ENTER PAPER · 1×</button></div></div></div></div>';
-                d.querySelectorAll('[data-corr-close]').forEach(function(x){x.onclick=function(){d.classList.add('is-hidden');};});
-                d.querySelector('[data-corr-paper]').onclick=function(){if(window.mteCorrelationPaperEnter(o,1,false)){this.textContent='PAPER OPENED';this.disabled=true;}};
-                d.scrollIntoView({behavior:'smooth',block:'start'});
-              };});
-              cv.querySelectorAll('[data-corr-enter]').forEach(function(b){b.onclick=function(){var o=list.find(function(x){return x.id===b.getAttribute('data-corr-enter')});if(o)window.mteCorrelationPaperEnter(o,1,false);};});
-            }).catch(function(e){var status=document.getElementById('mteCorrelationOpportunityStatus');if(status)status.textContent='CORRELATION 01 ERROR · '+esc(e.message||e);});
+          if(typeof window.mteOpenCorrelationLab==='function'){
+            window.mteOpenCorrelationLab();
+          }else{
+            var mount=document.getElementById('mteCorrelationMount');
+            if(mount && !mount.innerHTML.trim()){
+              mount.innerHTML='<section class="box"><h2>MTE CORRELATION LAB</h2><div class="sub">Correlation Lab failed to initialise. Reload the preview once.</div></section>';
+            }
           }
         }
         if(target==='trades'){
