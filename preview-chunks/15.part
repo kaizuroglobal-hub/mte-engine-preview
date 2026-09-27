@@ -495,7 +495,7 @@
           const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win===9999?100000:win);
           if(p.samples<20)continue;
           matrix[a][b]=matrix[b][a]=p;
-          if(Math.abs(p.corr)>=minR){const rel=relationshipTradeStats(aRows,bRows,p);pairs.push({a,b,...p,leader:rel.leader,follower:rel.follower,direction:rel.direction,probability:rel.resp.win5,response5:rel.resp.five,responseN:rel.resp.n});}
+          if(Math.abs(p.corr)>=minR){const rel=relationshipTradeStats(ds.raw[a],ds.raw[b],p);pairs.push({a,b,...p,leader:rel.leader,follower:rel.follower,direction:rel.direction,probability:rel.resp.win5,response5:rel.resp.five,responseN:rel.resp.n});}
         }
       }
       pairs.sort((a,b)=>(b.probability-a.probability)||(b.response5-a.response5)||(b.responseN-a.responseN));
@@ -520,7 +520,7 @@
     const direction=lag.lag>0?a+' leads '+b:lag.lag<0?b+' leads '+a:'same-bar relationship';
     detail.closest('.mte-corr-section').querySelector('.mte-collapse-body').classList.remove('is-collapsed');
     const toggle=detail.closest('.mte-corr-section').querySelector('.mte-collapse-toggle');toggle.textContent='⌃';toggle.setAttribute('aria-expanded','true');toggle.title='Collapse';
-    const btAsset=document.getElementById('btAsset'),canA=btAsset&&Array.from(btAsset.options).some(o=>o.value===a),canB=btAsset&&Array.from(btAsset.options).some(o=>o.value===b),tradeSymbol=canB?b:(canA?a:null);
+    const btAsset=document.getElementById('btAsset'),tradeSymbol=btAsset&&Array.from(btAsset.options).some(o=>o.value===rel.follower)?rel.follower:null;
     detail.innerHTML='<h3>RELATIONSHIP EXPLORER · '+a+' ↔ '+b+'</h3>'+
       '<div class="row"><span>Return correlation</span><b>'+(p.corr>=0?'+':'')+p.corr.toFixed(3)+'</b></div>'+
       '<div class="row"><span>Samples</span><b>'+p.samples.toLocaleString()+'</b></div>'+
