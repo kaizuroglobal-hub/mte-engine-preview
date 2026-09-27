@@ -158,13 +158,26 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         });
         view.classList.add('active');
         if(target==='correlation'){
-          if(typeof window.mteOpenCorrelationLab==='function'){
-            window.mteOpenCorrelationLab();
-          }else{
-            var mount=document.getElementById('mteCorrelationMount');
-            if(mount && !mount.innerHTML.trim()){
-              mount.innerHTML='<section class="box"><h2>MTE CORRELATION LAB</h2><div class="sub">Correlation Lab failed to initialise. Reload the preview once.</div></section>';
-            }
+          var cv=document.getElementById('correlation');
+          if(cv){
+            cv.innerHTML='<div id="mteCorrelationOpportunityWorkspace"><div class="mte-work-head"><div><div class="eyebrow">CORRELATION 01</div><h2>What can I trade right now?</h2><div class="sub">Inverse dislocation → historical response → duration → relationship state → paper trade.</div></div><div class="mte-work-count">STRATEGY 004</div></div><div class="mte-op-flow"><span>FIND</span><b>→</b><span>QUALIFY</span><b>→</b><span>MANAGE</span></div><div id="mteCorrelationOpportunityStatus" class="sub" style="margin:10px 0 14px">LOADING CORRELATION 01…</div><div id="mteCorrelationOpportunityList" class="mte-op-grid-list"></div><div id="mteCorrelationOpportunityDetail" class="mte-op-detail-view is-hidden"></div></div>';
+            loadCorrelationStrategyOpportunities().then(function(list){
+              var mount=document.getElementById('mteCorrelationOpportunityList');
+              var status=document.getElementById('mteCorrelationOpportunityStatus');
+              if(status)status.textContent=list.length+' CURRENT INVERSE DISLOCATIONS · 75% RESPONSE GATE · PAPER ONLY';
+              if(mount)mount.innerHTML=list.map(function(o){
+                return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">RANK '+esc(o.rank||'—')+'</div><div class="mte-op-symbol">'+esc(o.leader)+' → '+esc(o.follower)+'</div><div class="mte-op-name">INVERSE DISLOCATION</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">CURRENT MOVE · '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'% / '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-op-grid"><div><small>HISTORICAL RESPONSE</small><b>'+Number(o.probability).toFixed(1)+'%</b></div><div><small>N</small><b>'+o.responseN+'</b></div><div><small>BEST DURATION</small><b>'+esc(o.historicalDuration)+'</b></div><div><small>RELATIONSHIP</small><b>'+esc(o.relationshipStatus)+'</b></div></div><div class="mte-op-actions"><button data-corr-detail="'+esc(o.id)+'">QUALIFY</button><button class="primary" data-corr-enter="'+esc(o.id)+'">'+(o.autoPaperEligible?'AUTO 1× QUALIFIED':'ENTER PAPER')+'</button></div></div>';
+              }).join('');
+              cv.querySelectorAll('[data-corr-detail]').forEach(function(b){b.onclick=function(){
+                var o=list.find(function(x){return x.id===b.getAttribute('data-corr-detail')});if(!o)return;
+                var d=document.getElementById('mteCorrelationOpportunityDetail');if(!d)return;d.classList.remove('is-hidden');
+                d.innerHTML='<div class="box" style="margin-top:14px"><div class="mte-detail-head"><div><div class="eyebrow">CORRELATION 01 · QUALIFY</div><h2>'+esc(o.leader)+' → '+esc(o.follower)+'</h2><div class="sub">'+esc(o.side)+' · '+esc(o.relationshipStatus)+'</div></div><button data-corr-close>×</button></div><div class="mte-detail-grid"><div class="box"><h3>WHY NOW</h3><div class="mte-check">✓ Current trigger: '+(o.currentMove>=0?'+':'')+(o.currentMove*100).toFixed(2)+'%</div><div class="mte-check">✓ Follower move: '+(o.currentFollowerMove>=0?'+':'')+(o.currentFollowerMove*100).toFixed(2)+'%</div><div class="mte-check">✓ Historical response: '+Number(o.probability).toFixed(1)+'% · N='+o.responseN+'</div></div><div class="box"><h3>DURATION</h3><div class="mte-check">✓ Best historical duration: <b>'+esc(o.historicalDuration)+'</b></div>'+o.historicalDurations.map(function(x){return '<div class="mte-check">'+x.id+' · '+x.responseRate.toFixed(1)+'% · N='+x.n+'</div>';}).join('')+'</div><div class="box"><h3>MANAGE</h3><div class="mte-check">✓ Relationship: '+esc(o.relationshipStatus)+'</div><div class="mte-check">✓ Expected response: '+Number(o.expectedResponse).toFixed(2)+'%</div><div class="mte-check">✓ Max adverse: '+Number(o.maxAdverse).toFixed(2)+'%</div><div class="mte-detail-actions"><button data-corr-close>PASS</button><button class="primary" data-corr-paper>ENTER PAPER · 1×</button></div></div></div></div>';
+                d.querySelectorAll('[data-corr-close]').forEach(function(x){x.onclick=function(){d.classList.add('is-hidden');};});
+                d.querySelector('[data-corr-paper]').onclick=function(){if(window.mteCorrelationPaperEnter(o,1,false)){this.textContent='PAPER OPENED';this.disabled=true;}};
+                d.scrollIntoView({behavior:'smooth',block:'start'});
+              };});
+              cv.querySelectorAll('[data-corr-enter]').forEach(function(b){b.onclick=function(){var o=list.find(function(x){return x.id===b.getAttribute('data-corr-enter')});if(o)window.mteCorrelationPaperEnter(o,1,false);};});
+            }).catch(function(e){var status=document.getElementById('mteCorrelationOpportunityStatus');if(status)status.textContent='CORRELATION 01 ERROR · '+esc(e.message||e);});
           }
         }
         if(target==='trades'){
