@@ -530,8 +530,10 @@
         const rc=corr(leaderSeries.slice(-recent),followerSeries.slice(-recent));
         const relationSign=p.corr>=0?1:-1;
         const leaderMove=Number(leaderSeries[n-1]||0),followerMove=Number(followerSeries[n-1]||0);
+        const recent=leaderSeries.slice(-Math.min(60,n)),moveStd=stdev(recent)||0.0001;
+        const meaningfulMove=Math.abs(leaderMove)>=Math.max(0.0025,moveStd*0.75);
         const expectedSign=Math.sign(leaderMove)*relationSign;
-        const inverseDislocation=Math.abs(leaderMove)>0&&Math.abs(followerMove)>0&&Math.sign(followerMove)!==expectedSign;
+        const inverseDislocation=meaningfulMove&&Math.abs(followerMove)>0&&Math.sign(followerMove)!==expectedSign;
         const base=Math.abs(p.corr),now=Math.abs(rc);
         let status='ACTIVE';
         if(!Number.isFinite(rc)||Math.sign(rc)!==Math.sign(p.corr)||now<0.25)status='FAILED';
@@ -550,9 +552,10 @@
           matrix[a][b]=matrix[b][a]=p;
           if(Math.abs(p.corr)<minR)continue;
           const rel=relationshipTradeStats(ds.raw[a],ds.raw[b],p);
-          const leader=rel.leader,follower=rel.follower;
-          const leaderSeries=leader===a?p.ra:p.rb,followerSeries=follower===a?p.ra:p.rb;
           const relationSign=p.corr>=0?1:-1;
+          const latestA=Number(p.ra[p.ra.length-1]||0),latestB=Number(p.rb[p.rb.length-1]||0);
+          const leader= Math.abs(latestA)>=Math.abs(latestB)?a:b, follower=leader===a?b:a;
+          const leaderSeries=leader===a?p.ra:p.rb,followerSeries=follower===a?p.ra:p.rb;
           const state=currentState(p,leaderSeries,followerSeries);
           if(!state.inverseDislocation)continue;
           const durations=durationStats(p,leaderSeries,followerSeries,relationSign);
