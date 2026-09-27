@@ -735,6 +735,7 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
+</script>
 <style>
 .mte-corr-prob-wrap{margin:12px 0 14px;padding:10px;border:1px solid #dfe3e8;border-radius:5px;background:#f8fafb}
 .mte-corr-prob-title{font-size:9px;font-weight:900;margin-bottom:8px;letter-spacing:.04em}
@@ -745,4 +746,4 @@
 .mte-corr-prob b{font-size:10px}
 .mte-corr-prob strong{display:block;font-size:18px;margin-top:5px;color:#07883c}
 .mte-corr-prob small{display:block;font-size:8px;color:#697581;margin-top:2px}
-</style></script>
+</style>
