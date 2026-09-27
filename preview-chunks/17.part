@@ -128,11 +128,18 @@ d.scrollIntoView({behavior:'smooth',block:'start'});
 function bind(){
 document.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-detail'));};});
 document.querySelectorAll('[data-enter]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-enter'));};});
-document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=async function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});if(selected==='correlation'){var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(list)list.innerHTML='<div class="sub" style="padding:20px">LOADING CORRELATION 01 FROM CORRELATION LAB…</div>';try{await loadCorrelationStrategyOpportunities();}catch(e){if(list)list.innerHTML='<div class="sub" style="padding:20px">CORRELATION 01 ERROR · '+esc(e.message||e)+'</div>';return;}}renderList();};});
+document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=async function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});var list=document.querySelector('#mteOpportunityWorkspace .mte-op-grid-list');if(selected==='correlation'){if(list)list.innerHTML='<div class="sub" style="padding:20px">LOADING CORRELATION 01…</div>';try{await loadCorrelationStrategyOpportunities();renderList();}catch(e){if(list)list.innerHTML='<div class="box"><h3>CORRELATION 01 ERROR</h3><div class="sub">'+esc(e&&e.message||e)+'</div></div>';}}else{renderList();}};});
 }
 function renderList(){
 var m=document.getElementById('mteOpportunityWorkspace');if(!m)return;
-m.querySelector('.mte-op-grid-list').innerHTML=rows().map(card).join('');bind();
+var list=m.querySelector('.mte-op-grid-list');if(!list)return;
+try{
+ var data=rows();
+ list.innerHTML=data.map(card).join('');
+ bind();
+}catch(e){
+ list.innerHTML='<div class="box"><h3>OPPORTUNITY ENGINE ERROR</h3><div class="sub">'+esc(e&&e.message||e)+'</div></div>';
+}
 }
 function build(){
 function bindStrategyButtons(){
