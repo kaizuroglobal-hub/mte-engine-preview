@@ -66,8 +66,12 @@ footer{border-top:1px solid #dce1e6;margin-top:45px;padding:16px 30px;color:#7a8
 </section>
 
 <nav class="nav">
-  <button class="active" data-view="trades">TRADES</button><button data-view="assets">ASSETS</button><button data-view="positions">POSITIONS</button><button data-view="backtest">BACKTEST</button><button data-view="engine">ENGINE</button><button data-view="events">EVENTS</button>
+  <button class="active" data-view="trades">TRADES</button><button data-view="assets">ASSETS</button><button data-view="positions">POSITIONS</button><button data-view="backtest">BACKTEST</button><button data-view="correlation">CORRELATION</button><button data-view="engine">ENGINE</button><button data-view="events">EVENTS</button>
  </nav>
+
+ <section id="correlation" class="view panel">
+  <div id="mteCorrelationMount"></div>
+ </section>
 
  <section id="trades" class="view active panel">
   <div class="panelhead"><div><h2>Qualified Opportunities</h2><div class="sub">Only signals passing historical evidence, current conditions, confirmation, liquidity and risk.</div></div><b>3 / 5 maximum</b></div>
