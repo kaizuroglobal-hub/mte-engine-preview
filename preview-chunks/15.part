@@ -714,9 +714,20 @@
   window.mteExpandedStrategyLab=mteExpandedStrategyLab;
   window.addExpandedMteLabUI=addExpandedUI;
 
+  window.mteOpenCorrelationLab=function(){
+    try{
+      correlationLabHtml();
+      return true;
+    }catch(e){
+      const mount=document.getElementById('mteCorrelationMount');
+      if(mount)mount.innerHTML='<section class="box"><h2>MTE CORRELATION LAB · ERROR</h2><div class="sub">'+String(e.message||e)+'</div></section>';
+      return false;
+    }
+  };
+
   function init(){
     addExpandedUI();
-    correlationLabHtml();
+    window.mteOpenCorrelationLab();
     const s=document.getElementById('mteUniverseStatus');
     if(s)s.textContent='Expanded universe configured · will use only symbols present in the committed cache.';
   }
