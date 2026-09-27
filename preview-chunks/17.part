@@ -126,6 +126,16 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
           v.classList.remove('active');
         });
         view.classList.add('active');
+        if(target==='correlation'){
+          if(typeof window.mteOpenCorrelationLab==='function'){
+            window.mteOpenCorrelationLab();
+          }else{
+            var mount=document.getElementById('mteCorrelationMount');
+            if(mount && !mount.innerHTML.trim()){
+              mount.innerHTML='<section class="box"><h2>MTE CORRELATION LAB</h2><div class="sub">Correlation Lab failed to initialise. Reload the preview once.</div></section>';
+            }
+          }
+        }
         if(target==='trades'){
           var d=document.getElementById('mteOpportunityDetail');
           if(d)d.classList.add('is-hidden');
