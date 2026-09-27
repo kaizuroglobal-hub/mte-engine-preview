@@ -723,32 +723,6 @@
   }
 
 
-  // Expose the same correlation research used by CORRELATION LAB to the trader-facing
-  // Opportunities screen. This keeps both screens on the same relationship engine.
-  window.mteGetCorrelationOpportunities=async function(){
-    if(window.__mteCorrelationOppPromise)return window.__mteCorrelationOppPromise;
-    window.__mteCorrelationOppPromise=(async function(){
-      const cfg=getBTConfig(),win=60,minR=.50,ds=await loadCorrelationUniverse(cfg);
-      const symbols=ds.symbols,pairs=[];
-      for(let i=0;i<symbols.length;i++)for(let j=i+1;j<symbols.length;j++){
-        const a=symbols[i],b=symbols[j],p=correlationPair(ds.raw[a],ds.raw[b],win);
-        if(p.samples<20||Math.abs(p.corr)<minR)continue;
-        const rel=relationshipTradeStats(ds.raw[a],ds.raw[b],p),lr=rel.leaderRows,fr=rel.followerRows;
-        if(!lr.length||!fr.length)continue;
-        const leaderLast=lr[lr.length-1],followerLast=fr[fr.length-1];
-        const lmu=mean(lr),lsd=stdev(lr),z=lsd?Math.abs((leaderLast-lmu)/lsd):0;
-        const expected=leaderLast*rel.sign,followerGap=expected-followerLast*rel.sign;
-        const trigger=z>=1.5&&Math.abs(followerGap)>=Math.max(.001,lsd*.50);
-        const side=expected>0?'LONG':'SHORT';
-        const score=(trigger?1000:0)+(rel.resp.win5*5)+(Math.max(0,rel.resp.five)*20)+(p.stability*20)+Math.min(z,5)*5;
-        pairs.push({a,b,corr:p.corr,stability:p.stability,samples:p.samples,leader:rel.leader,follower:rel.follower,direction:rel.direction,probability:rel.resp.win5,response5:rel.resp.five,responseN:rel.resp.n,leaderMove:leaderLast*100,followerMove:followerLast*100,expectedMove:expected*100,gap:followerGap*100,shock:z,trigger,side,score});
-      }
-      pairs.sort((a,b)=>(b.score-a.score)||(b.probability-a.probability)||(b.response5-a.response5));
-      const out=pairs.slice(0,50);window.__mteCorrelationOpps=out;return out;
-    })().catch(function(e){window.__mteCorrelationOppPromise=null;throw e;});
-    return window.__mteCorrelationOppPromise;
-  };
-
   window.mteExpandedStrategyLab=mteExpandedStrategyLab;
   window.runStrategyLab=mteExpandedStrategyLab;
   window.optimiseBacktest=mteExpandedStrategyLab;
