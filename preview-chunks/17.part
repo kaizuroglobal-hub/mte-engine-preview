@@ -45,6 +45,7 @@ var META={
  mactech:{label:'MACTECH 01',desc:'Independent macro and technical confluence opportunity.'},
  correlation:{label:'CORRELATION 01',desc:'Cross-asset relationship, divergence and lead/lag opportunity.'}
 };
+var selected='all';
 var OPPS={
  macro:[
   {id:'MTE-M-000184',asset:'NVDA',name:'NVIDIA',side:'LONG',type:'Macro / event opportunity',evidence:'Macro transmission + historical response',horizon:'1–24H',status:'READY',entry:'After confirmation',invalid:'Macro thesis invalidation',expected:'Positive response if transmission persists',why:['Macro regime supports setup','Expected transmission identified','Historical analogue supports response','Risk gate passed']},
@@ -134,6 +135,35 @@ var m=document.getElementById('mteOpportunityWorkspace');if(!m)return;
 m.querySelector('.mte-op-grid-list').innerHTML=rows().map(card).join('');bind();
 }
 function build(){
+function bindStrategyButtons(){
+ var buttons=document.querySelectorAll('.strategy-btn[data-strategy]');
+ buttons.forEach(function(btn){
+   btn.onclick=function(){
+     var strategy=btn.getAttribute('data-strategy');
+     buttons.forEach(function(x){x.classList.toggle('active',x===btn);});
+     var meta={
+       macro:{eyebrow:'MACRO 01 · STRATEGY 001',title:'Macro / Event-Driven Trading',sub:'News → macro transmission → historical analogue → cross-asset confirmation → risk → entry timing.'},
+       technical:{eyebrow:'TECHNICAL 01 · STRATEGY 002',title:'Technical / Trend + Momentum Trading',sub:'Trend → momentum → structure → volatility → entry timing → risk.'},
+       mactech:{eyebrow:'MACTECH 01 · STRATEGY 003',title:'Macro + Technical Confluence',sub:'Independent macro evidence + independent technical evidence → confluence → risk → entry timing.'},
+       correlation:{eyebrow:'CORRELATION 01 · STRATEGY 004',title:'Cross-Asset Inverse Dislocation',sub:'Largest current mover → inverse relationship → historical response → duration → relationship state → paper trade.'}
+     }[strategy];
+     if(meta){
+       var e=document.getElementById('strategyEyebrow'),t=document.getElementById('strategyTitle'),sub=document.getElementById('strategySub');
+       if(e)e.textContent=meta.eyebrow;if(t)t.textContent=meta.title;if(sub)sub.textContent=meta.sub;
+     }
+     if(strategy==='correlation'){
+       var corrNav=document.querySelector('.nav button[data-view="correlation"]');
+       if(corrNav)corrNav.click();
+       return;
+     }
+     var tradeNav=document.querySelector('.nav button[data-view="trades"]');
+     if(tradeNav)tradeNav.click();
+     selected=strategy;
+     document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-op-filter')===strategy);});
+     renderList();
+   };
+ });
+}
 var st=document.createElement('style');
 st.textContent='.switch,.head,#strategySummary{display:none!important}.nav{margin-top:0!important}.nav button[data-view="trades"]{font-size:0}.nav button[data-view="trades"]:after{content:"OPPORTUNITIES";font-size:12px}.mte-work-head{display:flex;justify-content:space-between;align-items:end;gap:20px}.mte-work-head h2{margin:5px 0;font-size:22px}.mte-work-count{font-size:10px;font-weight:900;border:1px solid #cdd4db;padding:6px 8px;border-radius:4px}.mte-op-filter{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0}.mte-op-filter button{padding:8px 11px;border:1px solid #cdd4db;background:#fff;border-radius:4px;font-size:10px;font-weight:800;color:#596570}.mte-op-filter button.active{background:#18212b;color:#fff;border-color:#18212b}.mte-op-flow{display:flex;gap:9px;align-items:center;margin:13px 0;color:#68737e;font-size:9px;font-weight:900}.mte-op-grid-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.mte-op-card{background:#fff;border:1px solid #d7dde3;border-radius:5px;padding:15px}.mte-op-card-top,.mte-detail-head,.mte-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.mte-op-id{font-size:9px;color:#89939d}.mte-op-symbol{font-size:22px;font-weight:800;margin-top:4px}.mte-op-name,.mte-op-type{font-size:11px;color:#697581}.mte-op-side{padding:5px 8px;border:1px solid #1aa46e;color:#15875b;background:#f0faf6;font-size:9px;font-weight:900;border-radius:3px}.mte-op-type{margin:12px 0;border-top:1px solid #edf0f2;padding-top:10px;font-weight:700;color:#303b45}.mte-op-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mte-op-grid div{border-top:1px solid #edf0f2;padding-top:8px}.mte-op-grid small{display:block;font-size:8px;color:#7b858f}.mte-op-grid b{display:block;font-size:10px;margin-top:3px}.mte-op-actions,.mte-detail-actions{display:flex;gap:7px;margin-top:13px}.mte-op-actions button,.mte-detail-actions button{flex:1;padding:9px;border:1px solid #cdd4db;background:#fff;border-radius:3px;font-size:10px;font-weight:800}.mte-op-actions .primary,.mte-detail-actions .primary{background:#18212b;color:#fff;border-color:#18212b}.mte-op-detail-view{margin-top:15px}.mte-op-detail-view.is-hidden{display:none}.mte-detail-title{margin:14px 0}.mte-detail-title h2{font-size:28px;margin:4px 0}.mte-detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.mte-check{padding:9px 0;border-bottom:1px solid #edf0f2;font-size:11px}.mte-detail-engine{margin-top:12px;padding:11px;border-left:3px solid #18212b;background:#f7f9fb;font-size:10px}.mte-detail-engine span{display:block;color:#66727d;margin-top:3px}@media(max-width:1050px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr}.mte-op-flow{flex-wrap:wrap}}';
 document.head.appendChild(st);
@@ -142,6 +172,7 @@ var old=document.getElementById('mteOpportunityEngine');if(old)old.remove();
 var t=document.getElementById('trades');if(!t)return;
 t.innerHTML='<div id="mteOpportunityWorkspace"><div class="mte-work-head"><div><div class="eyebrow">MTE OPPORTUNITIES</div><h2>What can I trade right now?</h2><div class="sub">Find → qualify → understand → plan → decide. Strategy research is hidden behind the opportunity.</div></div><div class="mte-work-count">4 STRATEGIES</div></div><div class="mte-op-filter"><button class="active" data-op-filter="all">ALL</button><button data-op-filter="macro">MACRO 01</button><button data-op-filter="technical">TECHNICAL 01</button><button data-op-filter="mactech">MACTECH 01</button><button data-op-filter="correlation">CORRELATION 01</button></div><div class="mte-op-flow"><span>FIND</span><b>→</b><span>QUALIFY</span><b>→</b><span>UNDERSTAND</span><b>→</b><span>PLAN</span><b>→</b><span>DECIDE</span></div><div class="mte-op-grid-list"></div><div id="mteOpportunityDetail" class="mte-op-detail-view is-hidden"></div></div>';
 renderList();
+bindStrategyButtons();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
 })();
