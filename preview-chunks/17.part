@@ -59,6 +59,21 @@ var OPPS={
  ],
  correlation:[]
 };
+function rows(){var a=[];Object.keys(OPPS).forEach(function(k){OPPS[k].forEach(function(o){a.push({s:k,o:o});});});return selected==='all'?a:a.filter(function(x){return x.s===selected;});}
+function card(x){
+var o=x.o,s=x.s;
+return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">'+esc(o.id)+'</div><div class="mte-op-symbol">'+esc(o.asset)+'</div><div class="mte-op-name">'+esc(o.name)+'</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">'+esc(o.type)+'</div><div class="mte-op-grid"><div><small>STRATEGY</small><b>'+META[s].label+'</b></div><div><small>EVIDENCE</small><b>'+esc(o.evidence)+'</b></div><div><small>HORIZON</small><b>'+esc(o.horizon)+'</b></div><div><small>STATUS</small><b>'+esc(o.status)+'</b></div></div><div class="mte-op-actions"><button data-detail="'+esc(o.id)+'">VIEW OPPORTUNITY</button><button class="primary" data-enter="'+esc(o.id)+'">ENTER PAPER</button></div></div>';
+}
+function find(id){for(var k in OPPS){for(var i=0;i<OPPS[k].length;i++){if(OPPS[k][i].id===id)return {s:k,o:OPPS[k][i]};}}return null;}
+function detail(id){
+var f=find(id);if(!f)return;var o=f.o,s=f.s,d=document.getElementById('mteOpportunityDetail');if(!d)return;
+d.classList.remove('is-hidden');
+d.innerHTML='<div class="mte-detail-head"><button id="mteBack">← BACK TO OPPORTUNITIES</button><span class="mte-op-badge">'+META[s].label+'</span></div><div class="mte-detail-title"><div><div class="eyebrow">'+META[s].label+'</div><h2>'+esc(o.asset)+' · '+esc(o.side)+'</h2><div class="sub">'+esc(o.type)+'</div></div><strong>'+esc(o.status)+'</strong></div><div class="mte-detail-grid"><div class="box"><h3>WHY THIS IS AN OPPORTUNITY</h3>'+o.why.map(function(x){return '<div class="mte-check">✓ '+esc(x)+'</div>';}).join('')+'</div><div class="box"><h3>TRADE PLAN</h3><div class="row"><span>Entry</span><b>'+esc(o.entry)+'</b></div><div class="row"><span>Invalidation</span><b>'+esc(o.invalid)+'</b></div><div class="row"><span>Expected response</span><b>'+esc(o.expected)+'</b></div><div class="row"><span>Horizon</span><b>'+esc(o.horizon)+'</b></div><div class="row"><span>Re-entry</span><b>New qualifying structure + renewed evidence</b></div></div><div class="box"><h3>RISK GATE</h3><div class="row"><span>Risk / trade</span><b>1.0%</b></div><div class="row"><span>Max concurrent</span><b>5</b></div><div class="row"><span>Exposure</span><b>Check portfolio</b></div><div class="row"><span>Thesis failure</span><b>EXIT</b></div></div></div><div class="mte-detail-engine"><b>OPPORTUNITY ENGINE</b><span>'+META[s].desc+' Qualification happens here; the trader sees the resulting decision, not the machinery.</span></div><div class="mte-detail-actions"><button id="mtePass">PASS</button><button class="primary" id="mteEnter">ENTER PAPER TRADE</button></div>';
+document.getElementById('mteBack').onclick=function(){d.classList.add('is-hidden');};
+document.getElementById('mtePass').onclick=function(){d.classList.add('is-hidden');};
+document.getElementById('mteEnter').onclick=function(){var b=document.getElementById('mteEnter');var t=[o.id,o.asset,o.name,o.side,0,0,0,o.horizon,0,0];if(typeof openDynamicPaper==='function')openDynamicPaper(t,b);b.textContent='PAPER OPENED';b.disabled=true;};
+d.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function renderCorrelationPositions(){
  var rows=document.getElementById('positionRows');if(!rows)return;
  var ps=window.__mteCorrelationPaperPositions||[];
