@@ -109,3 +109,29 @@ function improvePositions(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',improvePositions);else improvePositions();
 })();
 </script>
+<script>
+(function(){
+  function initMteNavigation(){
+    if(window.__mteNavigationBound)return;
+    var nav=document.querySelector('.nav');
+    if(!nav)return;
+    window.__mteNavigationBound=true;
+    nav.querySelectorAll('button[data-view]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var target=btn.getAttribute('data-view');
+        nav.querySelectorAll('button[data-view]').forEach(function(b){b.classList.toggle('active',b===btn);});
+        document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('active',v.id===target);});
+        if(target==='correlation' && typeof window.correlationLabHtml==='function'){
+          window.correlationLabHtml();
+        }
+        if(target==='trades'){
+          var d=document.getElementById('mteOpportunityDetail');
+          if(d)d.classList.add('is-hidden');
+        }
+        window.scrollTo({top:0,behavior:'smooth'});
+      });
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initMteNavigation);else initMteNavigation();
+})();
+</script>
