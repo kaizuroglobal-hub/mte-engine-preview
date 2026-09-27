@@ -36,3 +36,67 @@ function architecture(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
 })();
 </script>
+<script>
+(function(){
+'use strict';
+var META={
+ macro:{label:'MACRO 01',desc:'Macro and event-driven opportunity.'},
+ technical:{label:'TECHNICAL 01',desc:'Price, structure, momentum and volatility opportunity.'},
+ mactech:{label:'MACTECH 01',desc:'Independent macro and technical confluence opportunity.'},
+ correlation:{label:'CORRELATION 01',desc:'Cross-asset relationship, divergence and lead/lag opportunity.'}
+};
+var OPPS={
+ macro:[
+  {id:'MTE-M-000184',asset:'NVDA',name:'NVIDIA',side:'LONG',type:'Macro / event opportunity',evidence:'Macro transmission + historical response',horizon:'1–24H',status:'READY',entry:'After confirmation',invalid:'Macro thesis invalidation',expected:'Positive response if transmission persists',why:['Macro regime supports setup','Expected transmission identified','Historical analogue supports response','Risk gate passed']},
+  {id:'MTE-M-000185',asset:'TLT',name:'20+ Year Treasury ETF',side:'SHORT',type:'Rates / macro opportunity',evidence:'Rates transmission + regime',horizon:'1–3D',status:'WATCH',entry:'Await confirmation',invalid:'Rates thesis failure',expected:'Continuation if rates impulse persists',why:['Rates channel identified','Macro regime aligned','Historical response available','Entry confirmation pending']}
+ ],
+ technical:[
+  {id:'MTE-T-000041',asset:'NVDA',name:'NVIDIA',side:'LONG',type:'Technical breakout',evidence:'Trend + momentum + structure',horizon:'1–24H',status:'READY',entry:'Breakout / retest',invalid:'Breakout failure',expected:'Continuation while structure holds',why:['Trend aligned','Momentum positive','Structure confirmed','Volatility suitable']},
+  {id:'MTE-T-000042',asset:'SPY',name:'S&P 500 ETF',side:'LONG',type:'Technical continuation',evidence:'Trend + momentum',horizon:'1–24H',status:'WATCH',entry:'Await structural confirmation',invalid:'Trend failure',expected:'Continuation if momentum persists',why:['Trend aligned','Momentum positive','Historical pattern available','Entry confirmation pending']}
+ ],
+ mactech:[
+  {id:'MTE-X-000001',asset:'QQQ',name:'Nasdaq 100 ETF',side:'LONG',type:'Macro + technical confluence',evidence:'Independent macro + technical alignment',horizon:'1–24H',status:'WATCH',entry:'Both sides confirm',invalid:'Macro or technical conflict',expected:'Continuation while both remain aligned',why:['Macro regime supportive','Technical structure supportive','Both evidence streams agree','Risk gate pending']}
+ ],
+ correlation:[
+  {id:'MTE-C-000001',asset:'BTC/USD',name:'Bitcoin',side:'LONG',type:'Relationship dislocation',evidence:'Correlation + divergence + lead/lag',horizon:'1–24H',status:'RESEARCH',entry:'Relationship trigger',invalid:'Relationship failure',expected:'Historical response after dislocation',why:['Relationship identified','Normal correlation measured','Current divergence detected','Lead/lag response available']}
+ ]
+};
+var selected='all';
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+function rows(){var a=[];Object.keys(OPPS).forEach(function(k){OPPS[k].forEach(function(o){a.push({s:k,o:o});});});return selected==='all'?a:a.filter(function(x){return x.s===selected;});}
+function card(x){
+var o=x.o,s=x.s;
+return '<div class="mte-op-card"><div class="mte-op-card-top"><div><div class="mte-op-id">'+esc(o.id)+'</div><div class="mte-op-symbol">'+esc(o.asset)+'</div><div class="mte-op-name">'+esc(o.name)+'</div></div><div class="mte-op-side">'+esc(o.side)+'</div></div><div class="mte-op-type">'+esc(o.type)+'</div><div class="mte-op-grid"><div><small>STRATEGY</small><b>'+META[s].label+'</b></div><div><small>EVIDENCE</small><b>'+esc(o.evidence)+'</b></div><div><small>HORIZON</small><b>'+esc(o.horizon)+'</b></div><div><small>STATUS</small><b>'+esc(o.status)+'</b></div></div><div class="mte-op-actions"><button data-detail="'+esc(o.id)+'">VIEW OPPORTUNITY</button><button class="primary" data-enter="'+esc(o.id)+'">ENTER PAPER</button></div></div>';
+}
+function find(id){for(var k in OPPS){for(var i=0;i<OPPS[k].length;i++){if(OPPS[k][i].id===id)return {s:k,o:OPPS[k][i]};}}return null;}
+function detail(id){
+var f=find(id);if(!f)return;var o=f.o,s=f.s,d=document.getElementById('mteOpportunityDetail');if(!d)return;
+d.classList.remove('is-hidden');
+d.innerHTML='<div class="mte-detail-head"><button id="mteBack">← BACK TO OPPORTUNITIES</button><span class="mte-op-badge">'+META[s].label+'</span></div><div class="mte-detail-title"><div><div class="eyebrow">'+META[s].label+'</div><h2>'+esc(o.asset)+' · '+esc(o.side)+'</h2><div class="sub">'+esc(o.type)+'</div></div><strong>'+esc(o.status)+'</strong></div><div class="mte-detail-grid"><div class="box"><h3>WHY THIS IS AN OPPORTUNITY</h3>'+o.why.map(function(x){return '<div class="mte-check">✓ '+esc(x)+'</div>';}).join('')+'</div><div class="box"><h3>TRADE PLAN</h3><div class="row"><span>Entry</span><b>'+esc(o.entry)+'</b></div><div class="row"><span>Invalidation</span><b>'+esc(o.invalid)+'</b></div><div class="row"><span>Expected response</span><b>'+esc(o.expected)+'</b></div><div class="row"><span>Horizon</span><b>'+esc(o.horizon)+'</b></div><div class="row"><span>Re-entry</span><b>New qualifying structure + renewed evidence</b></div></div><div class="box"><h3>RISK GATE</h3><div class="row"><span>Risk / trade</span><b>1.0%</b></div><div class="row"><span>Max concurrent</span><b>5</b></div><div class="row"><span>Exposure</span><b>Check portfolio</b></div><div class="row"><span>Thesis failure</span><b>EXIT</b></div></div></div><div class="mte-detail-engine"><b>OPPORTUNITY ENGINE</b><span>'+META[s].desc+' Qualification happens here; the trader sees the resulting decision, not the machinery.</span></div><div class="mte-detail-actions"><button id="mtePass">PASS</button><button class="primary" id="mteEnter">ENTER PAPER TRADE</button></div>';
+document.getElementById('mteBack').onclick=function(){d.classList.add('is-hidden');};
+document.getElementById('mtePass').onclick=function(){d.classList.add('is-hidden');};
+document.getElementById('mteEnter').onclick=function(){if(typeof toast==='function')toast(o.asset+' paper position opened');var b=document.getElementById('mteEnter');b.textContent='PAPER OPENED';b.disabled=true;};
+d.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function bind(){
+document.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-detail'));};});
+document.querySelectorAll('[data-enter]').forEach(function(b){b.onclick=function(){detail(b.getAttribute('data-enter'));};});
+document.querySelectorAll('[data-op-filter]').forEach(function(b){b.onclick=function(){selected=b.getAttribute('data-op-filter');document.querySelectorAll('[data-op-filter]').forEach(function(x){x.classList.toggle('active',x===b);});renderList();};});
+}
+function renderList(){
+var m=document.getElementById('mteOpportunityWorkspace');if(!m)return;
+m.querySelector('.mte-op-grid-list').innerHTML=rows().map(card).join('');bind();
+}
+function build(){
+var st=document.createElement('style');
+st.textContent='.switch,.head,#strategySummary{display:none!important}.nav{margin-top:0!important}.nav button[data-view="trades"]{font-size:0}.nav button[data-view="trades"]:after{content:"OPPORTUNITIES";font-size:12px}.mte-work-head{display:flex;justify-content:space-between;align-items:end;gap:20px}.mte-work-head h2{margin:5px 0;font-size:22px}.mte-work-count{font-size:10px;font-weight:900;border:1px solid #cdd4db;padding:6px 8px;border-radius:4px}.mte-op-filter{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0}.mte-op-filter button{padding:8px 11px;border:1px solid #cdd4db;background:#fff;border-radius:4px;font-size:10px;font-weight:800;color:#596570}.mte-op-filter button.active{background:#18212b;color:#fff;border-color:#18212b}.mte-op-flow{display:flex;gap:9px;align-items:center;margin:13px 0;color:#68737e;font-size:9px;font-weight:900}.mte-op-grid-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.mte-op-card{background:#fff;border:1px solid #d7dde3;border-radius:5px;padding:15px}.mte-op-card-top,.mte-detail-head,.mte-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.mte-op-id{font-size:9px;color:#89939d}.mte-op-symbol{font-size:22px;font-weight:800;margin-top:4px}.mte-op-name,.mte-op-type{font-size:11px;color:#697581}.mte-op-side{padding:5px 8px;border:1px solid #1aa46e;color:#15875b;background:#f0faf6;font-size:9px;font-weight:900;border-radius:3px}.mte-op-type{margin:12px 0;border-top:1px solid #edf0f2;padding-top:10px;font-weight:700;color:#303b45}.mte-op-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mte-op-grid div{border-top:1px solid #edf0f2;padding-top:8px}.mte-op-grid small{display:block;font-size:8px;color:#7b858f}.mte-op-grid b{display:block;font-size:10px;margin-top:3px}.mte-op-actions,.mte-detail-actions{display:flex;gap:7px;margin-top:13px}.mte-op-actions button,.mte-detail-actions button{flex:1;padding:9px;border:1px solid #cdd4db;background:#fff;border-radius:3px;font-size:10px;font-weight:800}.mte-op-actions .primary,.mte-detail-actions .primary{background:#18212b;color:#fff;border-color:#18212b}.mte-op-detail-view{margin-top:15px}.mte-op-detail-view.is-hidden{display:none}.mte-detail-title{margin:14px 0}.mte-detail-title h2{font-size:28px;margin:4px 0}.mte-detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.mte-check{padding:9px 0;border-bottom:1px solid #edf0f2;font-size:11px}.mte-detail-engine{margin-top:12px;padding:11px;border-left:3px solid #18212b;background:#f7f9fb;font-size:10px}.mte-detail-engine span{display:block;color:#66727d;margin-top:3px}@media(max-width:1050px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.mte-op-grid-list,.mte-detail-grid{grid-template-columns:1fr}.mte-op-flow{flex-wrap:wrap}}';
+document.head.appendChild(st);
+var nav=document.querySelector('.nav');if(nav){var labels={trades:'OPPORTUNITIES',assets:'ASSETS',positions:'POSITIONS',backtest:'BACKTEST',correlation:'CORRELATION',engine:'ENGINE',events:'EVENTS'};nav.querySelectorAll('button[data-view]').forEach(function(b){if(labels[b.dataset.view])b.textContent=labels[b.dataset.view];});}
+var old=document.getElementById('mteOpportunityEngine');if(old)old.remove();
+var t=document.getElementById('trades');if(!t)return;
+t.innerHTML='<div id="mteOpportunityWorkspace"><div class="mte-work-head"><div><div class="eyebrow">MTE OPPORTUNITIES</div><h2>What can I trade right now?</h2><div class="sub">Find → qualify → understand → plan → decide. Strategy research is hidden behind the opportunity.</div></div><div class="mte-work-count">4 STRATEGIES</div></div><div class="mte-op-filter"><button class="active" data-op-filter="all">ALL</button><button data-op-filter="macro">MACRO 01</button><button data-op-filter="technical">TECHNICAL 01</button><button data-op-filter="mactech">MACTECH 01</button><button data-op-filter="correlation">CORRELATION 01</button></div><div class="mte-op-flow"><span>FIND</span><b>→</b><span>QUALIFY</span><b>→</b><span>UNDERSTAND</span><b>→</b><span>PLAN</span><b>→</b><span>DECIDE</span></div><div class="mte-op-grid-list"></div><div id="mteOpportunityDetail" class="mte-op-detail-view is-hidden"></div></div>';
+renderList();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',build);else build();
+})();
+</script>
