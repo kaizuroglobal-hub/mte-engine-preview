@@ -40,7 +40,7 @@ function runMacroBacktest(symbol,closes,exitModel){
 }
 function getBTConfig(){
  const s=document.getElementById('btStart').value,e=document.getElementById('btEnd').value;
- return {start:s,end:e,capital:Math.max(1000,Number(document.getElementById('btCapital').value)||100000),fast:Math.max(2,Number(document.getElementById('btFast').value)||5),slow:Math.max(3,Number(document.getElementById('btSlow').value)||20),spread:Math.max(0,Number(document.getElementById('btSpread').value)||0),slippage:Math.max(0,Number(document.getElementById('btSlippage').value)||0),fees:Math.max(0,Number(document.getElementById('btFees').value)||0),mactechMomentum:20,mactechVol:20,mactechCorr:60,mactechBreakout:20,mactechMacroMin:.55,mactechTechMin:.65};
+ return {start:s,end:e,capital:Math.max(1000,Number(document.getElementById('btCapital').value)||100000),fast:Math.max(2,Number(document.getElementById('btFast').value)||5),slow:Math.max(3,Number(document.getElementById('btSlow').value)||20),spread:Math.max(0,Number(document.getElementById('btSpread').value)||0),slippage:Math.max(0,Number(document.getElementById('btSlippage').value)||0),fees:Math.max(0,Number(document.getElementById('btFees').value)||0),mactechMomentum:20,mactechVol:20,mactechCorr:60,mactechBreakout:20,mactechMacroMin:.55,mactechTechMin:.65,correlationLookback:60,correlationMin:.55,correlationShock:1.5,correlationHold:5};
 }
 function btCostPct(cfg){return 2*(cfg.spread+cfg.slippage+cfg.fees)/100;}
 function summariseTrades(symbol,trades,bars,strategy,cfg,dates){
