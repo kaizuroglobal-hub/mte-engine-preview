@@ -530,7 +530,7 @@
         const rc=corr(leaderSeries.slice(-recent),followerSeries.slice(-recent));
         const relationSign=p.corr>=0?1:-1;
         const leaderMove=Number(leaderSeries[n-1]||0),followerMove=Number(followerSeries[n-1]||0);
-        const recent=leaderSeries.slice(-Math.min(60,n)),moveStd=stdev(recent)||0.0001;
+        const moveWindow=leaderSeries.slice(-Math.min(60,n)),moveStd=stdev(moveWindow)||0.0001;
         const meaningfulMove=Math.abs(leaderMove)>=Math.max(0.0025,moveStd*0.75);
         const expectedSign=Math.sign(leaderMove)*relationSign;
         const inverseDislocation=meaningfulMove&&Math.abs(followerMove)>0&&Math.sign(followerMove)!==expectedSign;
