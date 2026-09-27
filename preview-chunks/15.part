@@ -499,6 +499,8 @@
         }
       }
       pairs.sort((a,b)=>(b.probability-a.probability)||(b.response5-a.response5)||(b.responseN-a.responseN));
+      // Strategy 004 publishes its own research output for the trader-facing CORRELATION 01 view.
+      window.__mteCorrelationTradeOpportunities=pairs.slice(0,100).map((p,i)=>({...p,rank:i+1}));
       const shown=pairs.slice(0,100);
       const fmt=x=>x==null?'—':(x.corr>=0?'+':'')+x.corr.toFixed(2);
       const bg=x=>{if(!x)return '#111';const v=Math.max(-1,Math.min(1,x.corr));const alpha=Math.abs(v);return v>=0?'rgba(0,170,65,'+(0.28+.70*alpha)+')':'rgba(210,40,50,'+(0.20+.70*alpha)+')';};
@@ -753,6 +755,8 @@
 
   window.mteExpandedStrategyLab=mteExpandedStrategyLab;
   window.addExpandedMteLabUI=addExpandedUI;
+
+  window.mteRunCorrelationLab=mteRunCorrelationLab;
 
   window.mteOpenCorrelationLab=function(){
     try{
